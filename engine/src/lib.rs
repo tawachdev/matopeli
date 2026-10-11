@@ -9,7 +9,7 @@ const BONUS_LIFETIME_TICKS: i32 = 45;
 const BONUS_SPAWN_CHANCE_PCT: i32 = 30;
 const BASE_SPEED_MS: i32 = 160;
 const SPEED_STEP_MS: i32 = 12;
-const MIN_SPEED_MS: i32 = 70;
+const MIN_SPEED_MS: i32 = 55;
 const MAX_SPAWN_ATTEMPTS: i32 = 512;
 
 type Cell = (i32, i32);
@@ -199,8 +199,8 @@ impl Game {
     }
 
     fn reset(&mut self, level: i32) {
-        self.level = level.clamp(1, MAX_LEVEL);
-        self.walls = level_walls(self.level);
+        self.level = level.max(1);
+        self.walls = level_walls((self.level - 1) % MAX_LEVEL + 1);
         let mut spawn = None;
         let mut rows: Vec<i32> = (0..ROWS).collect();
         rows.sort_by_key(|&r| (r - ROWS / 2).abs());
@@ -285,13 +285,10 @@ impl Game {
             self.progress += 1;
             ev = 1;
             if self.progress >= FOODS_PER_LEVEL {
-                if self.level < MAX_LEVEL {
-                    self.level += 1;
-                    self.state = State::Ready;
-                    self.reset_keep_score(self.level);
-                    return 4;
-                }
-                self.progress = 0;
+                self.level += 1;
+                self.state = State::Ready;
+                self.reset_keep_score(self.level);
+                return 4;
             }
             match self.try_free_cell(self.food) {
                 Some(cell) => self.food = cell,
@@ -533,11 +530,6 @@ pub extern "C" fn snake_cols() -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn snake_rows() -> i32 {
-    ROWS
-}
-
-#[no_mangle]
 pub extern "C" fn snake_goal() -> i32 {
     FOODS_PER_LEVEL
 }
@@ -601,6 +593,21 @@ mod tests {
         assert_eq!(g.score, FOOD_SCORE);
         assert_eq!(g.state, State::Ready);
         assert!(g.speed_ms() < BASE_SPEED_MS);
+    }
+
+    #[test]
+    fn levels_run_past_nine() {
+        let mut g = Game::new(1);
+        g.reset(9);
+        g.state = State::Running;
+        g.progress = FOODS_PER_LEVEL - 1;
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
+        assert_eq!(g.tick(), 4);
+        assert_eq!(g.level, 10);
+        assert_eq!(g.state, State::Ready);
+        assert_eq!(g.walls, level_walls(1));
+        assert_eq!(g.speed_ms(), MIN_SPEED_MS);
     }
 
     #[test]
@@ -743,9 +750,15 @@ mod tests {
         let mut g = Game::new(1);
         g.reset(0);
         assert_eq!(g.level, 1);
+        g.reset(10);
+        assert_eq!(g.level, 10);
+        assert_eq!(g.walls, level_walls(1));
         g.reset(99);
-        assert_eq!(g.level, MAX_LEVEL);
+        assert_eq!(g.level, 99);
         assert_eq!(g.speed_ms(), MIN_SPEED_MS);
+        let mut g = Game::new(1);
+        g.reset(1);
+        assert_eq!(g.speed_ms(), BASE_SPEED_MS);
     }
 
     #[test]

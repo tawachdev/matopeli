@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-lcd-bg: #9aa763;
-  --color-lcd-ink: #232a12;
-  --color-lcd-dim: #5a6335;
-  --color-nokiablue-face: #33507e;
-  --color-nokiablue-dark: #243c61;
+  --color-lcd-bg: #b3c948;
+  --color-lcd-ink: #26300f;
+  --color-lcd-dim: #6d7a33;
+  --color-nokiablue-face: #2e4066;
+  --color-nokiablue-dark: #1f2c4c;
   --color-nokkey: #d4d9e2;
   --color-nokkey-dark: #a9b1c0;
   --color-accent: #febb02;
@@ -25,20 +25,24 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   border-radius: 20px;
   padding: 7px 16px;
   font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: 0.025em;
-  transition: translate 0.05s;
+  transition: translate 0.06s ease-out, box-shadow 0.06s ease-out, filter 0.06s ease-out;
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
   color: #23304d;
   background: linear-gradient(#d4d9e2, #a9b1c0);
   box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4);
 }
 .btn-key:active {
-  translate: 0 2px;
-  box-shadow: 0 1px 0 #6d7482;
+  translate: 0 3px;
+  box-shadow: 0 0 0 #6d7482, 0 1px 2px rgba(0, 0, 0, 0.4);
+  filter: brightness(0.93);
 }
 .level-btn {
   width: 30px;
@@ -50,6 +54,12 @@ body {
   font-weight: bold;
   cursor: pointer;
   font-family: "Courier New", monospace;
+  transition: translate 0.06s ease-out, background-color 0.06s ease-out;
+}
+.level-btn:active {
+  translate: 0 2px;
+  background: #232a12;
+  color: #9aa763;
 }
 .level-btn.picked { background: #232a12; color: #9aa763; }
 .dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
@@ -61,11 +71,40 @@ body {
     inset 0 2px 2px rgba(255, 255, 255, 0.25),
     inset 0 -3px 6px rgba(0, 0, 0, 0.35);
 }
-.navi-ring { box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4); }
-.navi-ring:active { transform: translateY(2px); box-shadow: 0 1px 0 #6d7482; }
+.navi-ring { box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4); transition: translate 0.06s ease-out, box-shadow 0.06s ease-out, filter 0.06s ease-out; }
+.navi-ring:active { translate: 0 3px; box-shadow: 0 0 0 #6d7482, 0 1px 2px rgba(0, 0, 0, 0.4); filter: brightness(0.95); }
 .scanlines {
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 3px);
 }
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.14) 1px, transparent 1.4px);
+  background-size: 4px 4px;
+}
+.screen-arc {
+  border-radius: 26px 26px 16px 16px / 22px 22px 16px 16px;
+  background: linear-gradient(#dde1e9, #b7bdc9);
+}
+#navi span {
+  background: linear-gradient(#f2f5f9, #c9d0dc);
+  position: relative;
+}
+#navi span::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 3px;
+  background: #2fbfa0;
+  box-shadow: 0 0 6px rgba(47, 191, 160, 0.8);
+}
+#keypad b { color: #1f9d55; }
+#keypad small { white-space: nowrap; }
 canvas { image-rendering: pixelated; touch-action: none; }
 .banner { display: flex; animation: bannerIn 0.18s ease-out; }
 .banner.hidden { display: none; }

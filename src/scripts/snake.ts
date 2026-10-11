@@ -26,7 +26,6 @@ interface SnakeExports {
   snake_wall_y(p: number, i: number): number;
   snake_speed_ms(p: number): number;
   snake_cols(): number;
-  snake_rows(): number;
   snake_goal(): number;
   snake_max_level(): number;
 }
@@ -75,7 +74,8 @@ const engine: SnakeExports = maybeEngine;
 
 const GOAL = engine.snake_goal(), MAX_LEVEL = engine.snake_max_level();
 const CELL_PX = canvas.width / engine.snake_cols();
-const INK = '#232a12', PAPER = '#9aa763', DIM = '#6b743f';
+const BOARD_Y = 30;
+const INK = '#26300f', PAPER = '#b3c948';
 const MAX_FRAME_MS = 250;
 const FOOD_BLINK_MS = 250;
 const BONUS_BLINK_MS = 120;
@@ -96,8 +96,11 @@ let popup: { text: string; until: number } | null = null;
 let endBannerAt: number | null = null;
 let endWon = false;
 let levelBannerAt: number | null = null;
+let autoContinueAt: number | null = null;
+const AUTO_CONTINUE_MS = 1500;
 let flashUntil = 0;
 let shownScore = 0;
+let lastEatAt = 0;
 const scoreEl = $('score');
 const levelEl = $('level');
 const dotsEl = $('dots');
@@ -158,6 +161,7 @@ function startGame() {
   hideBanner();
 }
 function continueLevel() {
+  autoContinueAt = null;
   engine.snake_start(game);
   acc = 0; last = performance.now();
   hideBanner();
@@ -212,7 +216,7 @@ function frame(now: number) {
       acc -= step;
       const before = engine.snake_score(game);
       const ev = engine.snake_tick(game);
-      if (ev === 1) { sfx.eat(); buzz(12); }
+      if (ev === 1) { sfx.eat(); buzz(12); lastEatAt = now; }
       else if (ev === 2) { sfx.bonus(); popup = { text: '+' + (engine.snake_score(game) - before), until: now + POPUP_MS }; }
       else if (ev === 3) { onDeath(now); break; }
       else if (ev === 4) { onLevelUp(now); break; }
@@ -226,27 +230,82 @@ function frame(now: number) {
   }
   if (levelBannerAt !== null && now >= levelBannerAt) {
     levelBannerAt = null;
-    showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false, 'level');
+    showBanner(`Level ${engine.snake_level(game)}`, 'Get ready', false, 'level');
+    autoContinueAt = now + AUTO_CONTINUE_MS;
+  }
+  if (autoContinueAt !== null && now >= autoContinueAt) {
+    autoContinueAt = null;
+    if (engine.snake_state(game) === 0) continueLevel();
   }
   render(now);
   requestAnimationFrame(frame);
 }
 
+const FONT3X5: Record<string, string[]> = {
+  '0': ['111', '101', '101', '101', '111'],
+  '1': ['010', '110', '010', '010', '111'],
+  '2': ['111', '001', '111', '100', '111'],
+  '3': ['111', '001', '111', '001', '111'],
+  '4': ['101', '101', '111', '001', '001'],
+  '5': ['111', '100', '111', '001', '111'],
+  '6': ['111', '100', '111', '101', '111'],
+  '7': ['111', '001', '001', '010', '010'],
+  '8': ['111', '101', '111', '101', '111'],
+  '9': ['111', '101', '111', '001', '111'],
+};
+const APPLE = ['..#..', '.###.', '#####', '.###.', '..#..'];
+const BUG = ['#.#.#', '.###.', '#####', '.###.', '#.#.#'];
+
+function drawGlyph(map: string[], x: number, y: number, s: number, color: string) {
+  ctx.fillStyle = color;
+  for (let r = 0; r < map.length; r++) {
+    for (let c = 0; c < map[r].length; c++) {
+      if (map[r][c] === '#' || map[r][c] === '1') ctx.fillRect(x + c * s, y + r * s, s, s);
+    }
+  }
+}
+function drawNumber(value: number, digits: number, x: number, y: number, s: number) {
+  const text = String(value).padStart(digits, '0');
+  for (let i = 0; i < text.length; i++) {
+    drawGlyph(FONT3X5[text[i]], x + i * 4 * s, y, s, INK);
+  }
+}
+function drawLcdHeader() {
+  drawNumber(engine.snake_score(game), 4, 6, 4, 3);
+  const bonusTtl = engine.snake_bonus_ttl(game);
+  if (bonusTtl > 0) {
+    drawGlyph(BUG, canvas.width - 66, 5, 3, INK);
+    drawNumber(bonusTtl, 2, canvas.width - 46, 4, 3);
+  } else {
+    drawGlyph(APPLE, canvas.width - 62, 5, 3, INK);
+    drawNumber(GOAL - engine.snake_progress(game), 2, canvas.width - 44, 4, 3);
+  }
+  ctx.fillStyle = INK;
+  ctx.fillRect(4, 24, canvas.width - 8, 2);
+}
 function drawCell(x: number, y: number, color: string, solid = false) {
   ctx.fillStyle = color;
   const pad = solid ? 0 : 1;
-  ctx.fillRect(x * CELL_PX + pad, y * CELL_PX + pad, CELL_PX - pad * 2, CELL_PX - pad * 2);
+  ctx.fillRect(x * CELL_PX + pad, y * CELL_PX + BOARD_Y + pad, CELL_PX - pad * 2, CELL_PX - pad * 2);
 }
 function drawBoard(now: number) {
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, BOARD_Y, canvas.width, 2);
+  ctx.fillRect(0, BOARD_Y, 2, canvas.height - BOARD_Y);
+  ctx.fillRect(canvas.width - 2, BOARD_Y, 2, canvas.height - BOARD_Y);
+  ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
   const wallCount = engine.snake_wall_count(game);
   for (let i = 0; i < wallCount; i++) {
     const x = engine.snake_wall_x(game, i), y = engine.snake_wall_y(game, i);
     drawCell(x, y, INK, true);
     ctx.fillStyle = PAPER;
-    ctx.fillRect(x * CELL_PX, y * CELL_PX, CELL_PX, 1);
-    ctx.fillRect(x * CELL_PX, y * CELL_PX, 1, CELL_PX);
+    ctx.fillRect(x * CELL_PX, y * CELL_PX + BOARD_Y, CELL_PX, 1);
+    ctx.fillRect(x * CELL_PX, y * CELL_PX + BOARD_Y, 1, CELL_PX);
   }
-  if (Math.floor(now / FOOD_BLINK_MS) % 2 === 0) drawCell(engine.snake_food_x(game), engine.snake_food_y(game), INK);
+  if (Math.floor(now / FOOD_BLINK_MS) % 2 === 0) {
+    const fx = engine.snake_food_x(game), fy = engine.snake_food_y(game);
+    drawGlyph(APPLE, fx * CELL_PX + 1, fy * CELL_PX + BOARD_Y, 2, INK);
+  }
   drawBonus(now);
   drawSnake(now);
 }
@@ -255,28 +314,58 @@ function drawBonus(now: number) {
   if (bx < 0) return;
   const by = engine.snake_bonus_y(game), ttl = engine.snake_bonus_ttl(game);
   if (ttl <= BONUS_WARN_TTL && Math.floor(now / BONUS_BLINK_MS) % 2 !== 0) return;
-  const cx = bx * CELL_PX, cy = by * CELL_PX;
+  drawGlyph(BUG, bx * CELL_PX, by * CELL_PX + BOARD_Y - 1, 2, INK);
+}
+function drawLink(x: number, y: number, toPrev: [number, number], toNext: [number, number], isTail: boolean) {
+  const cx = x * CELL_PX, cy = y * CELL_PX + BOARD_Y;
   ctx.fillStyle = INK;
-  ctx.fillRect(cx + 1, cy + 1, CELL_PX - 2, CELL_PX - 2);
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(cx + 3, cy + 3, CELL_PX - 6, CELL_PX - 6);
-  ctx.fillStyle = INK;
-  ctx.fillRect(cx + 4, cy + 4, CELL_PX - 8, CELL_PX - 8);
+  const inset = isTail ? 2 : 1;
+  ctx.fillRect(cx + inset, cy + inset, CELL_PX - inset * 2, CELL_PX - inset * 2);
+  const arm = (dx: number, dy: number) => {
+    if (dx === 1) ctx.fillRect(cx + 5, cy + 3, 5, 4);
+    else if (dx === -1) ctx.fillRect(cx, cy + 3, 5, 4);
+    else if (dy === 1) ctx.fillRect(cx + 3, cy + 5, 4, 5);
+    else if (dy === -1) ctx.fillRect(cx + 3, cy, 4, 5);
+  };
+  arm(toPrev[0], toPrev[1]);
+  if (!isTail) arm(toNext[0], toNext[1]);
 }
 function drawSnake(now: number) {
   if (endBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
-  for (let i = length - 1; i >= 1; i--) drawCell(engine.snake_cell_x(game, i), engine.snake_cell_y(game, i), i % 2 ? DIM : INK);
+  const cell = (i: number): [number, number] => [engine.snake_cell_x(game, i), engine.snake_cell_y(game, i)];
+  for (let i = length - 1; i >= 1; i--) {
+    const [x, y] = cell(i);
+    const [px, py] = cell(i - 1);
+    const [nx, ny] = i + 1 < length ? cell(i + 1) : [x * 2 - px, y * 2 - py];
+    drawLink(x, y, [px - x, py - y], [nx - x, ny - y], i === length - 1);
+  }
   if (length === 0) return;
-  const hx = engine.snake_cell_x(game, 0), hy = engine.snake_cell_y(game, 0);
-  drawCell(hx, hy, INK, true);
+  const [hx, hy] = cell(0);
+  const [nx, ny] = length > 1 ? cell(1) : [hx - 1, hy];
+  const dx = hx - nx, dy = hy - ny;
+  const chomping = engine.snake_food_x(game) === hx + dx && engine.snake_food_y(game) === hy + dy;
+  const bx = hx * CELL_PX, by = hy * CELL_PX + BOARD_Y;
+  const gulp = now - lastEatAt < 150 ? 1 : 0;
+  ctx.fillStyle = INK;
+  ctx.fillRect(bx - gulp, by - gulp, CELL_PX + gulp * 2, CELL_PX + gulp * 2);
   ctx.fillStyle = PAPER;
-  ctx.fillRect(hx * CELL_PX + 2, hy * CELL_PX + 2, 2, 2);
-  ctx.fillRect(hx * CELL_PX + 6, hy * CELL_PX + 2, 2, 2);
+  if (dx !== 0) {
+    const ex = dx === 1 ? bx + 6 : bx + 2;
+    ctx.fillRect(ex, by + 2, 2, 2);
+    ctx.fillRect(ex, by + 6, 2, 2);
+    if (chomping) ctx.fillRect(dx === 1 ? bx + 8 : bx, by + 4, 2, 2);
+  } else {
+    const ey = dy === 1 ? by + 6 : by + 2;
+    ctx.fillRect(bx + 2, ey, 2, 2);
+    ctx.fillRect(bx + 6, ey, 2, 2);
+    if (chomping) ctx.fillRect(bx + 4, dy === 1 ? by + 8 : by, 2, 2);
+  }
 }
 function render(now: number) {
   canvas.style.filter = now < flashUntil ? 'invert(0.9)' : '';
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawLcdHeader();
   drawBoard(now);
   const score = engine.snake_score(game);
   if (score !== shownScore) {
@@ -286,7 +375,7 @@ function render(now: number) {
     scoreEl.classList.add('pop');
   }
   scoreEl.textContent = String(score);
-  levelEl.textContent = `Level ${engine.snake_level(game)}/${MAX_LEVEL}`;
+  levelEl.textContent = `Level ${engine.snake_level(game)}`;
   if (popup) {
     if (now > popup.until) popup = null;
     else {
@@ -294,7 +383,7 @@ function render(now: number) {
       ctx.fillStyle = INK;
       ctx.font = 'bold 13px "Courier New",monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 24 - age * 10);
+      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 64 - age * 10);
       ctx.textAlign = 'left';
     }
   }
@@ -394,7 +483,7 @@ window.addEventListener('pageshow', (e) => {
   destroyed = false;
   game = engine.snake_create(BigInt(Date.now()));
   shownScore = 0; popup = null; flashUntil = 0;
-  endBannerAt = null; endWon = false; levelBannerAt = null;
+  endBannerAt = null; endWon = false; levelBannerAt = null; autoContinueAt = null;
   startScreen = true;
   showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
 });

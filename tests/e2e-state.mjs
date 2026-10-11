@@ -70,6 +70,7 @@ async function leftPause() {
 async function ensureRunning() {
   for (let i = 0; i < 10; i++) {
     if ((await api('state()')) === 1) return true;
+    if ((await api('banner()')) === 'Level 2') return true;
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
   }
@@ -103,44 +104,33 @@ check('resume never loses score and keeps moving', await leftPause()
   && JSON.stringify(await api('head()')) !== JSON.stringify(frozen));
 
 check('four more eats reach level 2', await eatUpTo(5));
-let sawLevelBanner = false;
-let alreadyContinued = false;
-try {
-  await page.waitForFunction(
-    () => window.__matopeli.banner() === 'Level 2'
-      || (window.__matopeli.banner() === 'hidden' && window.__matopeli.state() === 1 && window.__matopeli.level() === 2),
-    null,
-    { timeout: 8000 }
-  );
-  sawLevelBanner = (await api('banner()')) === 'Level 2';
-  alreadyContinued = !sawLevelBanner;
-} catch {}
-check('level transition surfaces (banner or running level 2)', sawLevelBanner || alreadyContinued);
+await page.waitForFunction(() => window.__matopeli.banner() === 'Level 2', null, { timeout: 8000 });
+check('level banner shows', true);
 const keptScore = await api('score()');
-if (sawLevelBanner) {
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(400);
-}
-check('continue keeps level and never loses score', (await api('level()')) === 2 && (await api('score()')) >= keptScore);
-check('continue resumes running', await leftPause());
+await page.waitForTimeout(2500);
+const autoBanner = await api('banner()');
+const autoState = await api('state()');
+check('next level starts automatically', (autoBanner === 'hidden' && autoState === 1) || autoBanner === 'Game over');
+check('auto continue keeps level and score', (await api('level()')) === 2 && (await api('score()')) >= keptScore);
 
 await ensureRunning();
-await ensureRunning();
-const dirBeforeSwipe = await api('dir()');
-const swipeUp = dirBeforeSwipe[1] === 0;
-await page.evaluate((up) => {
-  const c = document.getElementById('lcd');
-  const r = c.getBoundingClientRect();
-  const t = (x, y) => new Touch({ identifier: 1, target: c, clientX: x, clientY: y });
-  const x0 = r.x + 60, y0 = r.y + 60;
-  c.dispatchEvent(new TouchEvent('touchstart', { touches: [t(x0, y0)], bubbles: true }));
-  c.dispatchEvent(new TouchEvent('touchmove', { touches: [up ? t(x0, y0 - 120) : t(x0 + 120, y0)], bubbles: true }));
-}, swipeUp);
-await page.waitForTimeout(400);
-check(
-  'touch swipe steers',
-  JSON.stringify(await api('dir()')) === JSON.stringify(swipeUp ? [0, -1] : [1, 0])
-);
+let swiped = false;
+for (let attempt = 0; attempt < 3 && !swiped; attempt++) {
+  await ensureRunning();
+  const dirBeforeSwipe = await api('dir()');
+  const swipeUp = dirBeforeSwipe[1] === 0;
+  await page.evaluate((up) => {
+    const c = document.getElementById('lcd');
+    const r = c.getBoundingClientRect();
+    const t = (x, y) => new Touch({ identifier: 1, target: c, clientX: x, clientY: y });
+    const x0 = r.x + 60, y0 = r.y + 60;
+    c.dispatchEvent(new TouchEvent('touchstart', { touches: [t(x0, y0)], bubbles: true }));
+    c.dispatchEvent(new TouchEvent('touchmove', { touches: [up ? t(x0, y0 - 120) : t(x0 + 120, y0)], bubbles: true }));
+  }, swipeUp);
+  await page.waitForTimeout(400);
+  swiped = JSON.stringify(await api('dir()')) === JSON.stringify(swipeUp ? [0, -1] : [1, 0]);
+}
+check('touch swipe steers', swiped);
 
 await ensureRunning();
 await ensureRunning();

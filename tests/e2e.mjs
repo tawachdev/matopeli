@@ -24,7 +24,7 @@ check('9 level buttons', (await page.$$('#levels button')).length === 9);
 await page.click('#softL');
 await page.waitForTimeout(200);
 check('start hides banner', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
-check('fresh game starts level 1', (await page.textContent('#level')) === 'Level 1/9');
+check('fresh game starts level 1', (await page.textContent('#level')) === 'Level 1');
 
 await page.keyboard.press(' ');
 await page.waitForTimeout(300);
@@ -45,14 +45,14 @@ await page.keyboard.press('Enter');
 await page.waitForTimeout(400);
 check('restart hides banner', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
 check('restart resets score to 0', (await page.textContent('#score')) === '0');
-check('restart keeps picked level 1', (await page.textContent('#level')) === 'Level 1/9');
+check('restart keeps picked level 1', (await page.textContent('#level')) === 'Level 1');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 await page.click('#levels button:last-child');
 await page.click('#softL');
 await page.waitForTimeout(300);
-check('picker starts level 9', (await page.textContent('#level')) === 'Level 9/9');
+check('picker starts level 9', (await page.textContent('#level')) === 'Level 9');
 
 check('console clean', problems.length === 0);
 for (const p of problems) console.log('  ! ' + p);

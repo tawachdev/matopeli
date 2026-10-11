@@ -35,7 +35,7 @@ check('page renders offline', await page.$eval('#banner', (el) => el.classList.c
 await page.click('#softL');
 await page.waitForTimeout(500);
 check('game starts offline', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
-check('level line reads offline', (await page.textContent('#level')) === 'Level 1/9');
+check('level line reads offline', (await page.textContent('#level')) === 'Level 1');
 
 check('console clean', problems.length === 0);
 for (const p of problems) console.log('  ! ' + p);
