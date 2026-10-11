@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-lcd-bg: #b3c948;
+  --color-lcd-bg: #a9bd4f;
   --color-lcd-ink: #26300f;
   --color-lcd-dim: #6d7a33;
   --color-nokiablue-face: #2e4066;
@@ -39,14 +39,14 @@ body.light {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
-  color: #23304d;
-  background: linear-gradient(#d4d9e2, #a9b1c0);
-  box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4);
+  color: #2b3140;
+  background: linear-gradient(#cdd1d9, #9fa3af);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.15), 0 3px 5px rgba(0, 0, 0, 0.35);
 }
 .btn-key:active {
-  translate: 0 3px;
-  box-shadow: 0 0 0 #6d7482, 0 1px 2px rgba(0, 0, 0, 0.4);
-  filter: brightness(0.93);
+  translate: 0 2px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 2px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3);
+  filter: brightness(0.95);
 }
 .level-btn {
   width: 30px;
@@ -133,57 +133,82 @@ body.light {
   background: rgba(9, 11, 16, 0.72);
 }
 .settings.hidden { display: none; }
-.settings-card {
-  width: 100%;
-  max-width: 300px;
-  border-radius: 16px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: linear-gradient(#2e4066, #1f2c4c);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+.lcd-menu {
+  width: min(300px, 92vw);
+  background: var(--color-lcd-bg);
+  border: 3px solid #5b616c;
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  font-family: var(--font-lcd);
+  color: var(--color-lcd-ink);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
 }
-.settings-title {
+.lcd-menu::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.08) 2px 3px);
+}
+.lcd-title {
+  background: var(--color-lcd-ink);
+  color: var(--color-lcd-bg);
   text-align: center;
-  font-size: 15px;
-  letter-spacing: 3px;
-  color: #eef2f8;
-  margin-bottom: 2px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 4px 0 3px;
+  margin-bottom: 8px;
 }
-.setting-row {
+.lcd-list { list-style: none; margin: 0; padding: 0 2px; min-height: 148px; }
+.menu-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #dbe2ee;
+  gap: 10px;
+  padding: 6px 8px;
   font-size: 13px;
-  transition: background-color 0.12s ease-out;
-  touch-action: manipulation;
-}
-.setting-row:hover { background: rgba(255, 255, 255, 0.1); }
-.setting-row em {
-  font-style: normal;
   font-weight: 700;
-  min-width: 34px;
-  text-align: right;
-  color: #1f9d55;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.setting-row em.off { color: #8a93a6; }
-.settings-close { width: 100%; margin-top: 4px; }
-.dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
-.dots i.on { background: #febb02; }
-
+.menu-row b { font-weight: 700; }
+.menu-row.cur { background: var(--color-lcd-ink); color: var(--color-lcd-bg); }
+.lcd-soft {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 2px solid var(--color-lcd-ink);
+  margin-top: 8px;
+  padding: 5px 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.lcd-back {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
 .phone-body {
-  border-radius: 60px 60px 70px 70px / 40px 40px 80px 80px;
+  border: 5px solid #b9c5cd;
+  border-radius: 28px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55),
     inset 0 2px 2px rgba(255, 255, 255, 0.25),
     inset 0 -3px 6px rgba(0, 0, 0, 0.35);
 }
-.navi-ring { box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4); transition: translate 0.06s ease-out, box-shadow 0.06s ease-out, filter 0.06s ease-out; }
-.navi-ring:active { translate: 0 3px; box-shadow: 0 0 0 #6d7482, 0 1px 2px rgba(0, 0, 0, 0.4); filter: brightness(0.95); }
+.navi-ring {
+  background: linear-gradient(#e9ecf1, #c4c8d0);
+  box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.75), inset 0 -2px 3px rgba(0, 0, 0, 0.15), 0 3px 5px rgba(0, 0, 0, 0.4);
+  transition: translate 0.06s ease-out, box-shadow 0.06s ease-out, filter 0.06s ease-out;
+}
+.navi-ring:active { translate: 0 2px; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), inset 0 -1px 2px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3); filter: brightness(0.95); }
 .scanlines {
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 3px);
 }
@@ -195,8 +220,8 @@ body.light {
   background-size: 4px 4px;
 }
 .screen-arc {
-  border-radius: 26px 26px 16px 16px / 22px 22px 16px 16px;
-  background: linear-gradient(#dde1e9, #b7bdc9);
+  border-radius: 14px;
+  background: linear-gradient(#3a4c6d, #22304c);
 }
 #navi span {
   background: linear-gradient(#f2f5f9, #c9d0dc);
@@ -214,8 +239,9 @@ body.light {
   background: #2fbfa0;
   box-shadow: 0 0 6px rgba(47, 191, 160, 0.8);
 }
-#keypad b { color: #1f9d55; }
-#keypad small { white-space: nowrap; }
+#keypad b { color: #2eaa5e; }
+#keypad small { white-space: nowrap; color: #2b3140; font-weight: 700; }
+#keypad .btn-key { border-radius: 24px; }
 canvas { image-rendering: pixelated; touch-action: none; }
 .banner { display: flex; animation: bannerIn 0.18s ease-out; }
 .banner.hidden { display: none; }
@@ -230,7 +256,7 @@ canvas { image-rendering: pixelated; touch-action: none; }
 .phone-body { user-select: none; -webkit-user-select: none; }
 button:focus-visible { outline: 3px solid #febb02; outline-offset: 2px; }
 @media (max-width: 640px) {
-  .phone-body { border-radius: 0; min-height: 100dvh; padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
+  .phone-body { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
   #keypad { gap: 10px; }
   #keypad .btn-key { padding-top: 12px; padding-bottom: 12px; }
 }

@@ -115,6 +115,7 @@ const PREF_SOUND = 'snake2_sound';
 const PREF_VIBRATE = 'snake2_vibrate';
 const PREF_SCAN = 'snake2_scan';
 const PREF_THEME = 'snake2_theme';
+const PREF_STYLE = 'snake2_style';
 
 const maybeEngine = await loadEngine();
 if (!maybeEngine) {
@@ -146,6 +147,13 @@ let best = loadBest();
 let startLevel = 1, acc = 0, last = performance.now();
 let soundOn = loadPref(PREF_SOUND, '1') === '1';
 let vibrateOn = loadPref(PREF_VIBRATE, '1') === '1';
+const SOUND_STYLES = ['classic', 'soft', 'retro'] as const;
+type SoundStyle = (typeof SOUND_STYLES)[number];
+function loadStyle(): SoundStyle {
+  const raw = loadPref(PREF_STYLE, 'classic');
+  return (SOUND_STYLES as readonly string[]).includes(raw) ? (raw as SoundStyle) : 'classic';
+}
+let soundStyle = loadStyle();
 let startScreen = true;
 let rolling = false;
 let popup: { text: string; until: number } | null = null;
@@ -168,13 +176,16 @@ let lastRank = 0;
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
-function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0.04) {
+function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0.04, style: SoundStyle = soundStyle) {
   if (!soundOn) return;
+  let f = freq, t = type, v = vol;
+  if (style === 'soft') { t = 'sine'; f = freq * 0.9; v = vol * 0.75; }
+  else if (style === 'retro') { f = freq * 0.55; v = vol * 1.25; }
   audioCtx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
   if (audioCtx.state === 'suspended') void audioCtx.resume();
   const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-  osc.type = type; osc.frequency.value = freq;
-  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  osc.type = t; osc.frequency.value = f;
+  gain.gain.setValueAtTime(v, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000);
   osc.connect(gain); gain.connect(audioCtx.destination);
   osc.start(); osc.stop(audioCtx.currentTime + ms / 1000);
@@ -394,6 +405,8 @@ function drawNumber(value: number, digits: number, x: number, y: number, s: numb
 }
 function drawLcdHeader() {
   drawNumber(engine.snake_score(game), 4, 6, 4, 3);
+  ctx.fillStyle = INK;
+  ctx.fillRect(6, 20, 48, 2);
   const bonusTtl = engine.snake_bonus_ttl(game);
   if (bonusTtl > 0) {
     drawGlyph(BUG, canvas.width - 66, 5, 3, INK);
@@ -489,7 +502,10 @@ function drawSnake(now: number) {
 }
 function render(now: number) {
   canvas.style.filter = now < flashUntil ? 'invert(0.9)' : '';
-  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const shade = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  shade.addColorStop(0, '#c3d76c');
+  shade.addColorStop(1, '#93ad41');
+  ctx.fillStyle = shade; ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawLcdHeader();
   drawBoard(now);
   const score = engine.snake_score(game);
@@ -572,6 +588,7 @@ const KEYMAP: Record<string, number> = { ArrowUp: 0, w: 0, W: 0, ArrowRight: 1, 
 window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement | null;
   if (target && target.id === 'levelInput') return;
+  if (!settingsEl.classList.contains('hidden')) { menuKey(e); return; }
   if (e.key in KEYMAP) { e.preventDefault(); engine.snake_set_dir(game, KEYMAP[e.key]); sfx.turn(); }
   else if (e.key >= '0' && e.key <= '9') pressDigit(+e.key);
   else if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); clearKey(); }
@@ -594,56 +611,150 @@ function applyScan() {
 function applyTheme() {
   document.body.classList.toggle('light', loadPref(PREF_THEME, 'dark') === 'light');
 }
-function setSettingLabel(id: string, on: boolean) {
-  const el = $(id);
-  el.textContent = on ? 'On' : 'Off';
-  el.classList.toggle('off', !on);
+function playStyleJingle(style: SoundStyle) {
+  [523, 784, 1046].forEach((freq, order) => setTimeout(() => beep(freq, 110, 'square', 0.045, style), order * 110));
 }
-function refreshSettings() {
-  setSettingLabel('setSound', soundOn);
-  setSettingLabel('setVibrate', vibrateOn);
-  setSettingLabel('setScan', loadPref(PREF_SCAN, '1') === '1');
-  const themeEl = $('setTheme');
-  const light = loadPref(PREF_THEME, 'dark') === 'light';
-  themeEl.textContent = light ? 'Light' : 'Dark';
-  themeEl.classList.toggle('off', light);
+let menuMode: 'main' | 'style' = 'main';
+let menuIndex = 0;
+let lastPreview: { style: SoundStyle; at: number } | null = null;
+const menuTitleEl = $('menuTitle');
+const menuListEl = $('menuList');
+
+function styleLabel(s: SoundStyle): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function previewStyle(s: SoundStyle) {
+  const now = performance.now();
+  if (lastPreview && lastPreview.style === s && now - lastPreview.at < 700) return;
+  lastPreview = { style: s, at: now };
+  playStyleJingle(s);
+}
+function menuItems(): { key: string; label: string; value: string }[] {
+  if (menuMode === 'style') {
+    return SOUND_STYLES.map((s) => ({
+      key: s,
+      label: (s === soundStyle ? '\u00bb ' : '\u00a0\u00a0\u00a0') + styleLabel(s),
+      value: '',
+    }));
+  }
+  return [
+    { key: 'sound', label: 'Sound', value: soundOn ? 'On' : 'Off' },
+    { key: 'style', label: 'Sound style', value: styleLabel(soundStyle) },
+    { key: 'vibrate', label: 'Vibration', value: vibrateOn ? 'On' : 'Off' },
+    { key: 'scan', label: 'Screen fx', value: loadPref(PREF_SCAN, '1') === '1' ? 'On' : 'Off' },
+    { key: 'theme', label: 'Theme', value: loadPref(PREF_THEME, 'dark') === 'light' ? 'Light' : 'Dark' },
+  ];
+}
+function renderMenu() {
+  menuTitleEl.textContent = menuMode === 'style' ? 'Sound style' : 'Settings';
+  menuListEl.innerHTML = '';
+  menuItems().forEach((item, i) => {
+    const li = document.createElement('li');
+    li.className = 'menu-row' + (i === menuIndex ? ' cur' : '');
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    li.appendChild(label);
+    if (item.value) {
+      const value = document.createElement('b');
+      value.textContent = item.value;
+      li.appendChild(value);
+    }
+    if (menuMode === 'style') {
+      li.addEventListener('pointerenter', () => { if (i !== menuIndex) previewStyle(SOUND_STYLES[i]); });
+    }
+    li.addEventListener('click', () => {
+      if (menuIndex !== i) {
+        menuIndex = i;
+        if (menuMode === 'style') previewStyle(SOUND_STYLES[i]);
+        renderMenu();
+        return;
+      }
+      activateMenu();
+    });
+    menuListEl.appendChild(li);
+  });
+}
+function menuMove(delta: number) {
+  const len = menuItems().length;
+  menuIndex = (menuIndex + delta + len) % len;
+  renderMenu();
+  if (menuMode === 'style') previewStyle(SOUND_STYLES[menuIndex]);
+  else sfx.click();
+}
+function activateMenu() {
+  const item = menuItems()[menuIndex];
+  if (menuMode === 'style') {
+    const s = SOUND_STYLES[menuIndex];
+    soundStyle = s;
+    savePref(PREF_STYLE, s);
+    sfx.eat();
+    menuMode = 'main';
+    menuIndex = 1;
+    renderMenu();
+    return;
+  }
+  if (item.key === 'sound') {
+    soundOn = !soundOn;
+    savePref(PREF_SOUND, soundOn ? '1' : '0');
+    if (soundOn) sfx.click();
+  } else if (item.key === 'vibrate') {
+    vibrateOn = !vibrateOn;
+    savePref(PREF_VIBRATE, vibrateOn ? '1' : '0');
+    buzz(20);
+  } else if (item.key === 'scan') {
+    const on = loadPref(PREF_SCAN, '1') !== '1';
+    savePref(PREF_SCAN, on ? '1' : '0');
+    applyScan();
+  } else if (item.key === 'theme') {
+    const light = loadPref(PREF_THEME, 'dark') !== 'light';
+    savePref(PREF_THEME, light ? 'light' : 'dark');
+    applyTheme();
+  } else if (item.key === 'style') {
+    menuMode = 'style';
+    menuIndex = SOUND_STYLES.indexOf(soundStyle);
+    renderMenu();
+    previewStyle(soundStyle);
+    return;
+  }
+  renderMenu();
+}
+function menuBackAction() {
+  if (menuMode === 'style') {
+    menuMode = 'main';
+    menuIndex = 1;
+    renderMenu();
+  } else {
+    toggleSettings(false);
+  }
+}
+function menuKey(e: KeyboardEvent) {
+  const up = e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === '2';
+  const down = e.key === 'ArrowDown' || e.key === 's' || e.key === 'S' || e.key === '8';
+  const select = e.key === 'Enter' || e.key === '5';
+  const back = e.key === 'Escape' || e.key === 'c' || e.key === 'C' || e.key === 'Backspace' || e.key === '*';
+  if (up) { e.preventDefault(); menuMove(-1); }
+  else if (down) { e.preventDefault(); menuMove(1); }
+  else if (select) { e.preventDefault(); activateMenu(); }
+  else if (back) { e.preventDefault(); menuBackAction(); }
 }
 function toggleSettings(open?: boolean) {
   const hide = open === undefined ? !settingsEl.classList.contains('hidden') : !open;
   settingsEl.classList.toggle('hidden', hide);
-  if (!hide) refreshSettings();
+  if (!hide) {
+    if (engine.snake_state(game) === 1) togglePause();
+    menuMode = 'main';
+    menuIndex = 0;
+    lastPreview = null;
+    renderMenu();
+  }
 }
 ($('btnSettings') as HTMLButtonElement).onclick = (e) => {
   (e.currentTarget as HTMLButtonElement).blur();
   sfx.click();
   toggleSettings(true);
 };
-($('settingsClose') as HTMLButtonElement).onclick = () => { sfx.click(); toggleSettings(false); };
+($('menuBack') as HTMLButtonElement).onclick = () => { sfx.click(); menuBackAction(); };
 settingsEl.addEventListener('click', (e) => { if (e.target === settingsEl) toggleSettings(false); });
-document.querySelectorAll<HTMLButtonElement>('.setting-row').forEach((row) => {
-  row.addEventListener('click', () => {
-    const kind = row.dataset.setting;
-    sfx.click();
-    if (kind === 'sound') {
-      soundOn = !soundOn;
-      savePref(PREF_SOUND, soundOn ? '1' : '0');
-      if (soundOn) sfx.click();
-    } else if (kind === 'vibrate') {
-      vibrateOn = !vibrateOn;
-      savePref(PREF_VIBRATE, vibrateOn ? '1' : '0');
-      buzz(20);
-    } else if (kind === 'scan') {
-      const on = loadPref(PREF_SCAN, '1') !== '1';
-      savePref(PREF_SCAN, on ? '1' : '0');
-      applyScan();
-    } else if (kind === 'theme') {
-      const light = loadPref(PREF_THEME, 'dark') !== 'light';
-      savePref(PREF_THEME, light ? 'light' : 'dark');
-      applyTheme();
-    }
-    refreshSettings();
-  });
-});
 applyScan();
 applyTheme();
 document.addEventListener('visibilitychange', () => {

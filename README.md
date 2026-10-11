@@ -24,15 +24,19 @@ WASM module — no CDN, no fonts, no images, no backend.
 | <kbd>C</kbd> / <kbd>Space</kbd> / <kbd>Esc</kbd> | Pause / resume |
 | Arrows / WASD / swipe | Also steer |
 
-Eat **5** foods to clear each maze. Mazes cycle through **9** layouts
-while levels keep rising endlessly and speed climbs to a brutal floor —
-the next level starts by itself after a short breather. The edges are
+Eat **5** foods to clear each maze. Your snake **keeps its length**
+into the next maze — it keeps growing run after run. Mazes cycle
+through **9** layouts while levels keep rising endlessly and speed
+climbs to a brutal floor — the next level starts by itself after a
+short breather. The edges are
 portals: the snake wraps around instead of dying (only maze walls and
 your own tail kill). The bonus bug spans **2×2** cells and pays
 **20 + time left** but vanishes fast, and a digestion bump ripples down
 the body after every bite. Fill the whole board and you clear it
 outright. The top **3** scores stay in the browser and the start screen
-lets you type any level. Tapping the screen follows the same rules as
+lets you type any level. The gear opens a Nokia-style settings menu
+on the LCD itself: Sound, Sound style (Classic/Soft/Retro), Vibration,
+Screen fx, and Theme — all persisted. Tapping the screen follows the same rules as
 the keys — pause screen resumes, level screen continues, never
 restarts by accident.
 
@@ -76,11 +80,11 @@ score kept, and only resets after game over or a cleared board.
 ## Tests
 
 ```sh
-cargo test --manifest-path engine/Cargo.toml   # 19 Rust unit tests
+cargo test --manifest-path engine/Cargo.toml   # 21 Rust unit tests
 npx tsc --noEmit                               # types
 npx astro check                                # Astro + template checks
 npm run build                                  # production build
-BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, high score, console)
+BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, LCD settings menu, high score, console)
 BASE=http://localhost:4322 npm run test:state  # dev state machine (eat, pause, level-up, touch)
 BASE=http://localhost:8901 npm run test:offline # offline reload + play
 ```

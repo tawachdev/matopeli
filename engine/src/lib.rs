@@ -377,8 +377,66 @@ impl Game {
 
     fn reset_keep_score(&mut self, level: i32) {
         let s = self.score;
+        let keep = self.snake.len();
         self.reset(level);
         self.score = s;
+        if keep > 3 && self.lay_snake(keep) {
+            if let Some(cell) = self.first_free_cell(self.head()) {
+                self.food = cell;
+            }
+        }
+    }
+
+    fn serpentine(&self, start: Cell, want: usize) -> Option<Vec<Cell>> {
+        if self.walls.contains(&start) {
+            return None;
+        }
+        let mut cells = Vec::with_capacity(want);
+        cells.push(start);
+        let mut cur = start;
+        let mut d: Cell = (1, 0);
+        while cells.len() < want {
+            let nxt = (cur.0 + d.0, cur.1 + d.1);
+            if nxt.0 >= 0 && nxt.0 < COLS && !self.walls.contains(&nxt) {
+                cells.push(nxt);
+                cur = nxt;
+            } else {
+                let down = (cur.0, cur.1 + 1);
+                if cur.1 + 1 < ROWS && !self.walls.contains(&down) {
+                    cells.push(down);
+                    cur = down;
+                    d = (-d.0, -d.1);
+                } else {
+                    return None;
+                }
+            }
+        }
+        Some(cells)
+    }
+
+    fn lay_snake(&mut self, len: usize) -> bool {
+        let want = len + 1;
+        let mut rows: Vec<i32> = (0..ROWS).collect();
+        rows.sort_by_key(|&r| (r - ROWS / 2).abs());
+        for &r0 in &rows {
+            for c0 in 1..COLS / 2 {
+                if let Some(cells) = self.serpentine((c0, r0), want) {
+                    let head = cells[len - 1];
+                    let neck = cells[len - 2];
+                    let fwd = (2 * head.0 - neck.0, 2 * head.1 - neck.1);
+                    if fwd.0 < 0 || fwd.0 >= COLS || fwd.1 < 0 || fwd.1 >= ROWS
+                        || self.walls.contains(&fwd)
+                    {
+                        continue;
+                    }
+                    self.snake = cells[..len].iter().rev().copied().collect();
+                    self.dir = (head.0 - neck.0, head.1 - neck.1);
+                    self.queued = [self.dir; 2];
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn speed_ms(&self) -> i32 {
@@ -646,6 +704,61 @@ mod tests {
         assert_eq!(g.score, FOOD_SCORE);
         assert_eq!(g.state, State::Ready);
         assert!(g.speed_ms() < BASE_SPEED_MS);
+    }
+
+    #[test]
+    fn level_up_keeps_snake_length() {
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        for _ in 0..(FOODS_PER_LEVEL - 1) {
+            let head = g.head();
+            g.food = (head.0 + 1, head.1);
+            g.bonus = None;
+            assert_eq!(g.tick(), 1);
+        }
+        let len = g.snake.len();
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
+        g.bonus = None;
+        assert_eq!(g.tick(), 4);
+        assert_eq!(g.level, 2);
+        assert_eq!(g.snake.len(), len + 1);
+        assert_eq!(g.state, State::Ready);
+        assert!(!g.occupied(g.food.0, g.food.1));
+        for &c in &g.snake {
+            assert!(!g.walls.contains(&c));
+        }
+        for w in g.snake.windows(2) {
+            assert_eq!((w[0].0 - w[1].0).abs() + (w[0].1 - w[1].1).abs(), 1);
+        }
+        let head = g.head();
+        let fwd = (head.0 + g.dir.0, head.1 + g.dir.1);
+        assert!(fwd.0 >= 0 && fwd.0 < COLS && fwd.1 >= 0 && fwd.1 < ROWS);
+        assert!(!g.walls.contains(&fwd));
+        g.state = State::Running;
+        assert_ne!(g.tick(), 3);
+    }
+
+    #[test]
+    fn long_snake_lays_in_every_maze() {
+        for lvl in 1..=MAX_LEVEL {
+            let mut g = Game::new(3);
+            g.reset(lvl);
+            assert!(g.lay_snake(40));
+            assert_eq!(g.snake.len(), 40);
+            let head = g.head();
+            let fwd = (head.0 + g.dir.0, head.1 + g.dir.1);
+            assert!(fwd.0 >= 0 && fwd.0 < COLS && fwd.1 >= 0 && fwd.1 < ROWS);
+            assert!(!g.walls.contains(&fwd));
+            for &c in &g.snake {
+                assert!(!g.walls.contains(&c));
+            }
+            for w in g.snake.windows(2) {
+                assert_eq!((w[0].0 - w[1].0).abs() + (w[0].1 - w[1].1).abs(), 1);
+            }
+            let uniq: std::collections::HashSet<Cell> = g.snake.iter().copied().collect();
+            assert_eq!(uniq.len(), 40);
+        }
     }
 
     #[test]
