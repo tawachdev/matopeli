@@ -101,6 +101,7 @@ let autoContinueAt: number | null = null;
 const AUTO_CONTINUE_MS = 1500;
 let flashUntil = 0;
 let shownScore = 0;
+let lastEatAt = 0;
 const scoreEl = $('score');
 const levelEl = $('level');
 const dotsEl = $('dots');
@@ -216,7 +217,7 @@ function frame(now: number) {
       acc -= step;
       const before = engine.snake_score(game);
       const ev = engine.snake_tick(game);
-      if (ev === 1) { sfx.eat(); buzz(12); }
+      if (ev === 1) { sfx.eat(); buzz(12); lastEatAt = now; }
       else if (ev === 2) { sfx.bonus(); popup = { text: '+' + (engine.snake_score(game) - before), until: now + POPUP_MS }; }
       else if (ev === 3) { onDeath(now); break; }
       else if (ev === 4) { onLevelUp(now); break; }
@@ -316,22 +317,51 @@ function drawBonus(now: number) {
   if (ttl <= BONUS_WARN_TTL && Math.floor(now / BONUS_BLINK_MS) % 2 !== 0) return;
   drawGlyph(BUG, bx * CELL_PX, by * CELL_PX + BOARD_Y - 1, 2, INK);
 }
+function drawLink(x: number, y: number, toPrev: [number, number], toNext: [number, number], isTail: boolean) {
+  const cx = x * CELL_PX, cy = y * CELL_PX + BOARD_Y;
+  ctx.fillStyle = INK;
+  const inset = isTail ? 2 : 1;
+  ctx.fillRect(cx + inset, cy + inset, CELL_PX - inset * 2, CELL_PX - inset * 2);
+  const arm = (dx: number, dy: number) => {
+    if (dx === 1) ctx.fillRect(cx + 5, cy + 3, 5, 4);
+    else if (dx === -1) ctx.fillRect(cx, cy + 3, 5, 4);
+    else if (dy === 1) ctx.fillRect(cx + 3, cy + 5, 4, 5);
+    else if (dy === -1) ctx.fillRect(cx + 3, cy, 4, 5);
+  };
+  arm(toPrev[0], toPrev[1]);
+  if (!isTail) arm(toNext[0], toNext[1]);
+}
 function drawSnake(now: number) {
   if (endBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
+  const cell = (i: number): [number, number] => [engine.snake_cell_x(game, i), engine.snake_cell_y(game, i)];
   for (let i = length - 1; i >= 1; i--) {
-    const x = engine.snake_cell_x(game, i), y = engine.snake_cell_y(game, i);
-    drawCell(x, y, INK, true);
-    ctx.fillStyle = PAPER;
-    const ox = (x + y) % 2 === 0 ? 3 : 2;
-    ctx.fillRect(x * CELL_PX + ox, y * CELL_PX + BOARD_Y + 3, 4, 4);
+    const [x, y] = cell(i);
+    const [px, py] = cell(i - 1);
+    const [nx, ny] = i + 1 < length ? cell(i + 1) : [x * 2 - px, y * 2 - py];
+    drawLink(x, y, [px - x, py - y], [nx - x, ny - y], i === length - 1);
   }
   if (length === 0) return;
-  const hx = engine.snake_cell_x(game, 0), hy = engine.snake_cell_y(game, 0);
-  drawCell(hx, hy, INK, true);
+  const [hx, hy] = cell(0);
+  const [nx, ny] = length > 1 ? cell(1) : [hx - 1, hy];
+  const dx = hx - nx, dy = hy - ny;
+  const chomping = engine.snake_food_x(game) === hx + dx && engine.snake_food_y(game) === hy + dy;
+  const bx = hx * CELL_PX, by = hy * CELL_PX + BOARD_Y;
+  const gulp = now - lastEatAt < 150 ? 1 : 0;
+  ctx.fillStyle = INK;
+  ctx.fillRect(bx - gulp, by - gulp, CELL_PX + gulp * 2, CELL_PX + gulp * 2);
   ctx.fillStyle = PAPER;
-  ctx.fillRect(hx * CELL_PX + 2, hy * CELL_PX + BOARD_Y + 2, 2, 2);
-  ctx.fillRect(hx * CELL_PX + 6, hy * CELL_PX + BOARD_Y + 2, 2, 2);
+  if (dx !== 0) {
+    const ex = dx === 1 ? bx + 6 : bx + 2;
+    ctx.fillRect(ex, by + 2, 2, 2);
+    ctx.fillRect(ex, by + 6, 2, 2);
+    if (chomping) ctx.fillRect(dx === 1 ? bx + 8 : bx, by + 4, 2, 2);
+  } else {
+    const ey = dy === 1 ? by + 6 : by + 2;
+    ctx.fillRect(bx + 2, ey, 2, 2);
+    ctx.fillRect(bx + 6, ey, 2, 2);
+    if (chomping) ctx.fillRect(bx + 4, dy === 1 ? by + 8 : by, 2, 2);
+  }
 }
 function render(now: number) {
   canvas.style.filter = now < flashUntil ? 'invert(0.9)' : '';
