@@ -8,6 +8,8 @@
 Nokia 3310 tribute. The whole game runs on a 32&nbsp;KB dependency-free
 WASM module — no CDN, no fonts, no images, no backend.
 
+**Play it:** https://matopeli-ten.vercel.app (installable PWA, works offline)
+
 ![Gameplay](docs/shot-gameplay.png)
 
 | Start screen | Game over | Mobile — game first |
