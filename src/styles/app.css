@@ -3,18 +3,11 @@
 @theme {
   --color-lcd-bg: #a9bd4f;
   --color-lcd-ink: #26300f;
-  --color-lcd-dim: #6d7a33;
   --color-nokiablue-face: #2e4066;
   --color-nokiablue-dark: #1f2c4c;
-  --color-nokkey: #d4d9e2;
-  --color-nokkey-dark: #a9b1c0;
   --color-accent: #febb02;
   --font-nokia: Verdana, Geneva, sans-serif;
   --font-lcd: "Courier New", monospace;
-}
-
-:root {
-  --radius: 0.75rem;
 }
 
 body {

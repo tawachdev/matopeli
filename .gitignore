@@ -5,3 +5,4 @@ engine/target/
 engine/out/
 *.log
 .DS_Store
+.vercel

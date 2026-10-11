@@ -1,4 +1,6 @@
 
+#![allow(clippy::missing_safety_doc)]
+
 pub const COLS: i32 = 28;
 pub const ROWS: i32 = 16;
 const FOODS_PER_LEVEL: i32 = 5;
@@ -291,7 +293,7 @@ impl Game {
     }
 
     fn tick(&mut self) -> i32 {
-        if self.state == State::Paused || self.state == State::Over {
+        if self.state == State::Paused || self.state == State::Over || self.state == State::Won {
             return 0;
         }
         self.state = State::Running;
@@ -878,7 +880,7 @@ mod tests {
     fn all_levels_have_spawn_room_and_food_free() {
         for lvl in 1..=MAX_LEVEL {
             let mut g = Game::new(7);
-            g.reset(lvl as i32);
+            g.reset(lvl);
             assert_eq!(g.snake.len(), 3);
             assert!(!g.occupied(g.food.0, g.food.1));
             assert!(!g.walls.contains(&g.snake[0]));
@@ -910,6 +912,33 @@ mod tests {
     }
 
     #[test]
+    fn won_tick_changes_nothing() {
+        let mut g = Game::new(1);
+        g.reset(1);
+        let food = (10, 8);
+        let mut body = vec![(9, 8)];
+        for y in 0..ROWS {
+            for x in 0..COLS {
+                let cell = (x, y);
+                if cell != food && cell != (9, 8) {
+                    body.push(cell);
+                }
+            }
+        }
+        g.snake = body;
+        g.food = food;
+        g.dir = (1, 0);
+        g.state = State::Running;
+        assert_eq!(g.tick(), 5);
+        let snapshot = g.snake.clone();
+        let score = g.score;
+        assert_eq!(g.tick(), 0);
+        assert_eq!(g.state, State::Won);
+        assert_eq!(g.snake, snapshot);
+        assert_eq!(g.score, score);
+    }
+
+    #[test]
     fn placements_stay_valid() {
         let dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)];
         for seed in 0..20u64 {
@@ -918,7 +947,7 @@ mod tests {
             let mut step = 0u64;
             for _ in 0..300 {
                 step += 1;
-                if step % 7 == 0 {
+                if step.is_multiple_of(7) {
                     g.queue_dir(dirs[(step / 7) as usize % 4]);
                 }
                 let ev = g.tick();
@@ -994,7 +1023,7 @@ mod tests {
         let mut prev = i32::MAX;
         for lvl in 1..=MAX_LEVEL {
             for (x, y) in level_walls(lvl) {
-                assert!(x >= 0 && x < COLS && y >= 0 && y < ROWS);
+                assert!((0..COLS).contains(&x) && (0..ROWS).contains(&y));
             }
             let mut g = Game::new(1);
             g.reset(lvl);
