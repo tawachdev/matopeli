@@ -530,11 +530,6 @@ pub extern "C" fn snake_cols() -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn snake_rows() -> i32 {
-    ROWS
-}
-
-#[no_mangle]
 pub extern "C" fn snake_goal() -> i32 {
     FOODS_PER_LEVEL
 }

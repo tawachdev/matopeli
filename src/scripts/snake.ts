@@ -26,7 +26,6 @@ interface SnakeExports {
   snake_wall_y(p: number, i: number): number;
   snake_speed_ms(p: number): number;
   snake_cols(): number;
-  snake_rows(): number;
   snake_goal(): number;
   snake_max_level(): number;
 }
