@@ -1,8 +1,32 @@
 
 pub const COLS: i32 = 28;
 pub const ROWS: i32 = 16;
-const GOAL: i32 = 5; // foods per level
+const FOODS_PER_LEVEL: i32 = 5;
 const MAX_LEVEL: i32 = 9;
+const FOOD_SCORE: i32 = 10;
+const BONUS_BASE_SCORE: i32 = 20;
+const BONUS_LIFETIME_TICKS: i32 = 45;
+const BONUS_SPAWN_CHANCE_PCT: i32 = 30;
+const BASE_SPEED_MS: i32 = 160;
+const SPEED_STEP_MS: i32 = 12;
+const MIN_SPEED_MS: i32 = 70;
+const MAX_SPAWN_ATTEMPTS: i32 = 512;
+
+type Cell = (i32, i32);
+
+#[derive(Clone, Copy)]
+struct Bonus {
+    x: i32,
+    y: i32,
+    ttl: i32,
+}
+
+#[repr(i32)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum DeathCause {
+    Wall = 1,
+    SelfHit = 2,
+}
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -14,38 +38,38 @@ enum State {
 }
 
 pub struct Game {
-    snake: Vec<(i32, i32)>, // head first
-    dir: (i32, i32),
-    queued: [(i32, i32); 2],
+    snake: Vec<Cell>,
+    dir: Cell,
+    queued: [Cell; 2],
     qlen: usize,
-    food: (i32, i32),
-    bonus: Option<(i32, i32, i32)>, // x, y, ttl ticks
-    walls: Vec<(i32, i32)>,
+    food: Cell,
+    bonus: Option<Bonus>,
+    walls: Vec<Cell>,
     score: i32,
     level: i32,
     progress: i32,
     state: State,
-    cause: i32, // 0 none, 1 wall, 2 self
+    cause: Option<DeathCause>,
     rng: u64,
 }
 
-fn opposite(a: (i32, i32), b: (i32, i32)) -> bool {
+fn opposite(a: Cell, b: Cell) -> bool {
     a.0 == -b.0 && a.1 == -b.1
 }
 
-fn hbar(w: &mut Vec<(i32, i32)>, row: i32, c0: i32, c1: i32) {
+fn hbar(w: &mut Vec<Cell>, row: i32, c0: i32, c1: i32) {
     for c in c0..=c1 {
         w.push((c, row));
     }
 }
 
-fn vbar(w: &mut Vec<(i32, i32)>, col: i32, r0: i32, r1: i32) {
+fn vbar(w: &mut Vec<Cell>, col: i32, r0: i32, r1: i32) {
     for r in r0..=r1 {
         w.push((col, r));
     }
 }
 
-fn level_walls(level: i32) -> Vec<(i32, i32)> {
+fn level_walls(level: i32) -> Vec<Cell> {
     let mut w = Vec::new();
     match level {
         2 => {
@@ -126,7 +150,7 @@ impl Game {
             level: 1,
             progress: 0,
             state: State::Ready,
-            cause: 0,
+            cause: None,
             rng: if seed == 0 { 0x9E3779B97F4A7C15 } else { seed },
         };
         g.reset(1);
@@ -146,8 +170,8 @@ impl Game {
             || self.walls.iter().any(|&(wx, wy)| wx == x && wy == y)
     }
 
-    fn free_cell(&mut self) -> (i32, i32) {
-        for _ in 0..512 {
+    fn free_cell(&mut self) -> Cell {
+        for _ in 0..MAX_SPAWN_ATTEMPTS {
             let x = self.rand(COLS);
             let y = self.rand(ROWS);
             if !self.occupied(x, y) && (x, y) != self.food {
@@ -178,13 +202,13 @@ impl Game {
         self.qlen = 0;
         self.progress = 0;
         self.bonus = None;
-        self.cause = 0;
+        self.cause = None;
         self.state = State::Ready;
         self.food = (0, 0);
         self.food = self.free_cell();
     }
 
-    fn queue_dir(&mut self, d: (i32, i32)) {
+    fn queue_dir(&mut self, d: Cell) {
         let last = if self.qlen > 0 {
             self.queued[self.qlen - 1]
         } else {
@@ -195,6 +219,10 @@ impl Game {
         }
         self.queued[self.qlen] = d;
         self.qlen += 1;
+    }
+
+    fn head(&self) -> Cell {
+        self.snake[0]
     }
 
     fn tick(&mut self) -> i32 {
@@ -210,14 +238,14 @@ impl Game {
                 self.dir = d;
             }
         }
-        let (hx, hy) = self.snake[0];
-        let nx = hx + self.dir.0;
-        let ny = hy + self.dir.1;
+        let head = self.head();
+        let nx = head.0 + self.dir.0;
+        let ny = head.1 + self.dir.1;
         if nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS
             || self.walls.contains(&(nx, ny))
         {
             self.state = State::Over;
-            self.cause = 1;
+            self.cause = Some(DeathCause::Wall);
             return 3;
         }
         let grew_eat = (nx, ny) == self.food;
@@ -228,42 +256,42 @@ impl Game {
         };
         if body.contains(&(nx, ny)) {
             self.state = State::Over;
-            self.cause = 2;
+            self.cause = Some(DeathCause::SelfHit);
             return 3;
         }
         self.snake.insert(0, (nx, ny));
         let mut ev = 0;
         if grew_eat {
-            self.score += 10;
+            self.score += FOOD_SCORE;
             self.progress += 1;
             ev = 1;
             self.food = self.free_cell();
-            if self.bonus.is_none() && self.rand(100) < 30 {
+            if self.bonus.is_none() && self.rand(100) < BONUS_SPAWN_CHANCE_PCT {
                 let (bx, by) = self.free_cell();
-                self.bonus = Some((bx, by, 45));
+                self.bonus = Some(Bonus { x: bx, y: by, ttl: BONUS_LIFETIME_TICKS });
             }
-            if self.progress >= GOAL {
+            if self.progress >= FOODS_PER_LEVEL {
                 if self.level < MAX_LEVEL {
                     self.level += 1;
-                    self.state = State::Ready; // breather between levels
+                    self.state = State::Ready;
                     self.reset_keep_score(self.level);
                     return 4;
                 } else {
-                    self.progress = 0; // endless at max level
+                    self.progress = 0;
                 }
             }
         } else {
             self.snake.pop();
         }
-        if let Some((bx, by, ttl)) = self.bonus {
-            if (nx, ny) == (bx, by) {
-                self.score += 20 + ttl;
+        if let Some(b) = self.bonus {
+            if (nx, ny) == (b.x, b.y) {
+                self.score += BONUS_BASE_SCORE + b.ttl;
                 self.bonus = None;
                 ev = 2;
-            } else if ttl <= 1 {
+            } else if b.ttl <= 1 {
                 self.bonus = None;
             } else {
-                self.bonus = Some((bx, by, ttl - 1));
+                self.bonus = Some(Bonus { ttl: b.ttl - 1, ..b });
             }
         }
         ev
@@ -276,7 +304,7 @@ impl Game {
     }
 
     fn speed_ms(&self) -> i32 {
-        (160 - (self.level - 1) * 12).max(70)
+        (BASE_SPEED_MS - (self.level - 1) * SPEED_STEP_MS).max(MIN_SPEED_MS)
     }
 }
 
@@ -357,7 +385,14 @@ macro_rules! get {
 get!(snake_score, score);
 get!(snake_level, level);
 get!(snake_progress, progress);
-get!(snake_cause, cause);
+
+#[no_mangle]
+pub unsafe extern "C" fn snake_cause(p: *mut Game) -> i32 {
+    match p.as_ref().and_then(|g| g.cause) {
+        None => 0,
+        Some(c) => c as i32,
+    }
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn snake_state(p: *mut Game) -> i32 {
@@ -410,7 +445,7 @@ pub unsafe extern "C" fn snake_food_y(p: *mut Game) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn snake_bonus_x(p: *mut Game) -> i32 {
     match p.as_ref() {
-        Some(g) => g.bonus.map(|b| b.0).unwrap_or(-1),
+        Some(g) => g.bonus.map(|b| b.x).unwrap_or(-1),
         None => -1,
     }
 }
@@ -418,7 +453,7 @@ pub unsafe extern "C" fn snake_bonus_x(p: *mut Game) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn snake_bonus_y(p: *mut Game) -> i32 {
     match p.as_ref() {
-        Some(g) => g.bonus.map(|b| b.1).unwrap_or(-1),
+        Some(g) => g.bonus.map(|b| b.y).unwrap_or(-1),
         None => -1,
     }
 }
@@ -426,7 +461,7 @@ pub unsafe extern "C" fn snake_bonus_y(p: *mut Game) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn snake_bonus_ttl(p: *mut Game) -> i32 {
     match p.as_ref() {
-        Some(g) => g.bonus.map(|b| b.2).unwrap_or(0),
+        Some(g) => g.bonus.map(|b| b.ttl).unwrap_or(0),
         None => 0,
     }
 }
@@ -475,7 +510,7 @@ pub extern "C" fn snake_rows() -> i32 {
 
 #[no_mangle]
 pub extern "C" fn snake_goal() -> i32 {
-    GOAL
+    FOODS_PER_LEVEL
 }
 
 #[no_mangle]
@@ -487,22 +522,24 @@ pub extern "C" fn snake_max_level() -> i32 {
 mod tests {
     use super::*;
 
+    const BORDER_LEVEL: i32 = 6;
+
     #[test]
     fn moves_and_grows_on_food() {
         let mut g = Game::new(1);
         g.state = State::Running;
-        let (hx, hy) = g.snake[0];
-        g.food = (hx + 1, hy); // place food ahead (may overlap wall on some level? level 1: no walls)
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
         let len = g.snake.len();
         assert_eq!(g.tick(), 1);
         assert_eq!(g.snake.len(), len + 1);
-        assert_eq!(g.score, 10);
+        assert_eq!(g.score, FOOD_SCORE);
     }
 
     #[test]
     fn wall_kills() {
         let mut g = Game::new(1);
-        g.reset(6); // border frame
+        g.reset(BORDER_LEVEL);
         g.state = State::Running;
         for _ in 0..30 {
             if g.tick() == 3 {
@@ -510,7 +547,7 @@ mod tests {
             }
         }
         assert_eq!(g.state, State::Over);
-        assert_eq!(g.cause, 1);
+        assert_eq!(g.cause, Some(DeathCause::Wall));
     }
 
     #[test]
@@ -518,31 +555,31 @@ mod tests {
         let mut g = Game::new(1);
         g.state = State::Running;
         g.snake = vec![(5, 5), (5, 6), (6, 6), (6, 5), (6, 4)];
-        g.dir = (0, 1); // head (5,5) -> (5,6) which is body (not tail)
+        g.dir = (0, 1);
         assert_eq!(g.tick(), 3);
-        assert_eq!(g.cause, 2);
+        assert_eq!(g.cause, Some(DeathCause::SelfHit));
     }
 
     #[test]
     fn level_up_after_goal() {
         let mut g = Game::new(1);
         g.state = State::Running;
-        g.progress = GOAL - 1;
-        let (hx, hy) = g.snake[0];
-        g.food = (hx + 1, hy);
+        g.progress = FOODS_PER_LEVEL - 1;
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
         assert_eq!(g.tick(), 4);
         assert_eq!(g.level, 2);
-        assert!(g.speed_ms() < 160);
+        assert!(g.speed_ms() < BASE_SPEED_MS);
     }
 
     #[test]
     fn no_reverse() {
         let mut g = Game::new(1);
         g.state = State::Running;
-        g.queue_dir((-1, 0)); // opposite of (1,0) must be ignored
-        let (hx, _) = g.snake[0];
+        g.queue_dir((-1, 0));
+        let head = g.head();
         g.tick();
-        assert_eq!(g.snake[0].0, hx + 1);
+        assert_eq!(g.head().0, head.0 + 1);
     }
 
     #[test]

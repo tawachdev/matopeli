@@ -9,8 +9,8 @@ import '../styles/app.css';
 <title>Matopeli — Snake II in Rust + WebAssembly</title>
 </head>
 <body class="min-h-screen font-nokia text-slate-100">
-<main class="mx-auto w-full max-w-[400px] px-3 py-5">
-  <header class="mb-3.5 text-center">
+<main class="mx-auto w-full max-w-[400px] px-3 py-5 max-sm:max-w-none max-sm:p-0">
+  <header class="mb-3.5 text-center max-sm:hidden">
     <h1 class="font-lcd text-[28px] tracking-[5px]">MATOPELI</h1>
     <p class="mt-1.5 text-xs text-slate-400">Rust engine · WebAssembly · works fully offline</p>
   </header>
@@ -63,13 +63,13 @@ import '../styles/app.css';
     <div class="mx-auto mb-0 mt-3 h-2 w-2 rounded-full bg-[#141a26] shadow-inner"></div>
   </div>
 
-  <section class="mt-4 grid grid-cols-2 gap-2 font-nokia text-xs text-slate-400">
+  <section class="mt-4 grid grid-cols-2 gap-2 font-nokia text-xs text-slate-400 max-sm:hidden">
     <div><b class="text-slate-200">2 4 6 8</b> steer — like the real thing</div>
     <div><b class="text-slate-200">1–9</b> pick level · <b class="text-slate-200">C</b> pause</div>
     <div><b class="text-slate-200">Arrows / WASD</b> work too · swipe the screen</div>
     <div>Eat <b class="text-accent">5</b> to clear a level · grab the bug fast</div>
   </section>
-  <footer class="mt-2.5 text-center text-[11px] text-slate-500">Tribute to the Nokia 3310 · game logic in Rust</footer>
+  <footer class="mt-2.5 text-center text-[11px] text-slate-500 max-sm:hidden">Tribute to the Nokia 3310 · game logic in Rust</footer>
 </main>
 <script>
   import '../scripts/snake.ts';

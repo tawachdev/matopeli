@@ -49,3 +49,6 @@ canvas { image-rendering: pixelated; }
 .dots i.on { background: #febb02; }
 .banner { display: flex; }
 .banner.hidden { display: none; }
+@media (max-width: 640px) {
+  .phone-body { border-radius: 0; min-height: 100dvh; }
+}
