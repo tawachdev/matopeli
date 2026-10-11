@@ -19,6 +19,10 @@
 
 body {
   background: radial-gradient(900px 500px at 50% -5%, #2b3038, #14161a);
+  transition: background 0.25s ease;
+}
+body.light {
+  background: radial-gradient(900px 500px at 50% -5%, #eef1f6, #c6cfdd);
 }
 
 .btn-key {

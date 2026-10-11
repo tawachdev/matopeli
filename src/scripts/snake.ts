@@ -114,6 +114,7 @@ function savePref(key: string, value: string) {
 const PREF_SOUND = 'snake2_sound';
 const PREF_VIBRATE = 'snake2_vibrate';
 const PREF_SCAN = 'snake2_scan';
+const PREF_THEME = 'snake2_theme';
 
 const maybeEngine = await loadEngine();
 if (!maybeEngine) {
@@ -590,6 +591,9 @@ canvas.addEventListener('click', () => { if (!banner.classList.contains('hidden'
 function applyScan() {
   if (scanEl) scanEl.style.display = loadPref(PREF_SCAN, '1') === '1' ? '' : 'none';
 }
+function applyTheme() {
+  document.body.classList.toggle('light', loadPref(PREF_THEME, 'dark') === 'light');
+}
 function setSettingLabel(id: string, on: boolean) {
   const el = $(id);
   el.textContent = on ? 'On' : 'Off';
@@ -599,6 +603,10 @@ function refreshSettings() {
   setSettingLabel('setSound', soundOn);
   setSettingLabel('setVibrate', vibrateOn);
   setSettingLabel('setScan', loadPref(PREF_SCAN, '1') === '1');
+  const themeEl = $('setTheme');
+  const light = loadPref(PREF_THEME, 'dark') === 'light';
+  themeEl.textContent = light ? 'Light' : 'Dark';
+  themeEl.classList.toggle('off', light);
 }
 function toggleSettings(open?: boolean) {
   const hide = open === undefined ? !settingsEl.classList.contains('hidden') : !open;
@@ -628,11 +636,16 @@ document.querySelectorAll<HTMLButtonElement>('.setting-row').forEach((row) => {
       const on = loadPref(PREF_SCAN, '1') !== '1';
       savePref(PREF_SCAN, on ? '1' : '0');
       applyScan();
+    } else if (kind === 'theme') {
+      const light = loadPref(PREF_THEME, 'dark') !== 'light';
+      savePref(PREF_THEME, light ? 'light' : 'dark');
+      applyTheme();
     }
     refreshSettings();
   });
 });
 applyScan();
+applyTheme();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && engine.snake_state(game) === 1) togglePause();
 });
