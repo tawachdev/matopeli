@@ -5,7 +5,7 @@ import '../styles/app.css';
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#14161a" />
 <title>Matopeli — Snake II in Rust + WebAssembly</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Crect%20width='16'%20height='16'%20rx='3'%20fill='%239aa763'/%3E%3Crect%20x='3'%20y='3'%20width='4'%20height='4'%20fill='%23232a12'/%3E%3Crect%20x='7'%20y='7'%20width='4'%20height='4'%20fill='%23232a12'/%3E%3Crect%20x='3'%20y='11'%20width='6'%20height='2'%20fill='%23232a12'/%3E%3C/svg%3E" />
@@ -29,7 +29,7 @@ import '../styles/app.css';
 
     <div class="rounded-[14px] bg-[#c3c8d2] p-2.5 shadow-[inset_0_2px_5px_rgba(0,0,0,0.4)]">
       <div class="relative overflow-hidden rounded-md border-[3px] border-[#5b616c]">
-        <canvas id="lcd" width="280" height="160" class="block w-full bg-lcd-bg"></canvas>
+        <canvas id="lcd" width="280" height="160" class="block w-full bg-lcd-bg" role="img" aria-label="Snake game board"></canvas>
         <div class="scanlines pointer-events-none absolute inset-0"></div>
         <div class="banner absolute inset-0 flex-col items-center justify-center gap-2 bg-lcd-bg/90 p-2.5 text-center font-lcd text-lcd-ink" id="banner">
           <b id="bannerTitle" class="text-[22px] tracking-[2px]">Snake II</b>

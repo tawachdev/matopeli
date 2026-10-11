@@ -78,6 +78,7 @@ canvas { image-rendering: pixelated; touch-action: none; }
   50% { transform: scale(1.4); color: #febb02; }
 }
 .phone-body { user-select: none; -webkit-user-select: none; }
+button:focus-visible { outline: 3px solid #febb02; outline-offset: 2px; }
 @media (max-width: 640px) {
   .phone-body { border-radius: 0; min-height: 100dvh; padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
   #keypad { gap: 10px; }

@@ -14,7 +14,7 @@ const MAX_SPAWN_ATTEMPTS: i32 = 512;
 
 type Cell = (i32, i32);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 struct Bonus {
     x: i32,
     y: i32,
@@ -35,6 +35,7 @@ enum State {
     Running = 1,
     Paused = 2,
     Over = 3,
+    Won = 4,
 }
 
 pub struct Game {
@@ -170,15 +171,31 @@ impl Game {
             || self.walls.iter().any(|&(wx, wy)| wx == x && wy == y)
     }
 
-    fn free_cell(&mut self) -> Cell {
-        for _ in 0..MAX_SPAWN_ATTEMPTS {
-            let x = self.rand(COLS);
-            let y = self.rand(ROWS);
-            if !self.occupied(x, y) && (x, y) != self.food {
-                return (x, y);
+    fn first_free_cell(&self, avoid: Cell) -> Option<Cell> {
+        let total = COLS * ROWS;
+        let start = (self.rng % total as u64) as i32;
+        let mut i = 0;
+        while i < total {
+            let k = (start + i) % total;
+            let cell = (k % COLS, k / COLS);
+            if cell != avoid && !self.occupied(cell.0, cell.1) {
+                return Some(cell);
             }
+            i += 1;
         }
-        (1, 1)
+        None
+    }
+
+    fn try_free_cell(&mut self, avoid: Cell) -> Option<Cell> {
+        let mut attempts = 0;
+        while attempts < MAX_SPAWN_ATTEMPTS {
+            let cell = (self.rand(COLS), self.rand(ROWS));
+            if cell != avoid && !self.occupied(cell.0, cell.1) {
+                return Some(cell);
+            }
+            attempts += 1;
+        }
+        self.first_free_cell(avoid)
     }
 
     fn reset(&mut self, level: i32) {
@@ -205,7 +222,9 @@ impl Game {
         self.cause = None;
         self.state = State::Ready;
         self.food = (0, 0);
-        self.food = self.free_cell();
+        if let Some(cell) = self.first_free_cell((0, 0)) {
+            self.food = cell;
+        }
     }
 
     fn queue_dir(&mut self, d: Cell) {
@@ -265,19 +284,29 @@ impl Game {
             self.score += FOOD_SCORE;
             self.progress += 1;
             ev = 1;
-            self.food = self.free_cell();
-            if self.bonus.is_none() && self.rand(100) < BONUS_SPAWN_CHANCE_PCT {
-                let (bx, by) = self.free_cell();
-                self.bonus = Some(Bonus { x: bx, y: by, ttl: BONUS_LIFETIME_TICKS });
-            }
             if self.progress >= FOODS_PER_LEVEL {
                 if self.level < MAX_LEVEL {
                     self.level += 1;
                     self.state = State::Ready;
                     self.reset_keep_score(self.level);
                     return 4;
-                } else {
-                    self.progress = 0;
+                }
+                self.progress = 0;
+            }
+            match self.try_free_cell(self.food) {
+                Some(cell) => self.food = cell,
+                None => {
+                    self.state = State::Won;
+                    return 5;
+                }
+            }
+            if self.bonus.is_none() && self.rand(100) < BONUS_SPAWN_CHANCE_PCT {
+                if let Some(cell) = self.try_free_cell(self.food) {
+                    self.bonus = Some(Bonus {
+                        x: cell.0,
+                        y: cell.1,
+                        ttl: BONUS_LIFETIME_TICKS,
+                    });
                 }
             }
         } else {
@@ -593,5 +622,171 @@ mod tests {
             assert!(!g.occupied(g.food.0, g.food.1));
             assert!(!g.walls.contains(&g.snake[0]));
         }
+    }
+
+    #[test]
+    fn won_when_board_full() {
+        let mut g = Game::new(1);
+        g.reset(1);
+        let food = (10, 8);
+        let mut body = vec![(9, 8)];
+        for y in 0..ROWS {
+            for x in 0..COLS {
+                let cell = (x, y);
+                if cell != food && cell != (9, 8) {
+                    body.push(cell);
+                }
+            }
+        }
+        g.snake = body;
+        g.food = food;
+        g.dir = (1, 0);
+        g.state = State::Running;
+        assert_eq!(g.tick(), 5);
+        assert_eq!(g.state, State::Won);
+        assert_eq!(g.cause, None);
+        assert_eq!(g.score, FOOD_SCORE);
+    }
+
+    #[test]
+    fn placements_stay_valid() {
+        let dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)];
+        for seed in 0..20u64 {
+            let mut g = Game::new(seed);
+            g.state = State::Running;
+            let mut step = 0u64;
+            for _ in 0..300 {
+                step += 1;
+                if step % 7 == 0 {
+                    g.queue_dir(dirs[(step / 7) as usize % 4]);
+                }
+                let ev = g.tick();
+                if ev == 3 || ev == 4 || ev == 5 {
+                    break;
+                }
+                assert!(!g.occupied(g.food.0, g.food.1));
+                if let Some(b) = g.bonus {
+                    assert!(!g.occupied(b.x, b.y));
+                    assert!((b.x, b.y) != g.food);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn queued_turns_apply_in_order() {
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        let start = g.head();
+        g.queue_dir((0, -1));
+        g.queue_dir((-1, 0));
+        g.tick();
+        assert_eq!(g.head(), (start.0, start.1 - 1));
+        g.tick();
+        assert_eq!(g.head(), (start.0 - 1, start.1 - 1));
+    }
+
+    #[test]
+    fn reset_clears_run_state() {
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
+        g.tick();
+        g.queue_dir((0, -1));
+        g.reset(3);
+        assert_eq!(g.score, 10);
+        assert_eq!(g.progress, 0);
+        assert_eq!(g.bonus, None);
+        assert_eq!(g.qlen, 0);
+        assert_eq!(g.state, State::Ready);
+        assert_eq!(g.level, 3);
+        assert_eq!(g.snake.len(), 3);
+        unsafe {
+            let p: *mut Game = &mut g;
+            snake_reset(p, 1);
+        }
+        assert_eq!(g.score, 0);
+        assert_eq!(g.level, 1);
+    }
+
+    #[test]
+    fn paused_tick_changes_nothing() {
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        g.tick();
+        g.state = State::Paused;
+        let snapshot = g.snake.clone();
+        let score = g.score;
+        let food = g.food;
+        assert_eq!(g.tick(), 0);
+        assert_eq!(g.snake, snapshot);
+        assert_eq!(g.score, score);
+        assert_eq!(g.food, food);
+    }
+
+    #[test]
+    fn level_bounds_and_speeds() {
+        assert_eq!(level_walls(1).len(), 0);
+        assert_eq!(level_walls(6).len(), 84);
+        let mut prev = i32::MAX;
+        for lvl in 1..=MAX_LEVEL {
+            for (x, y) in level_walls(lvl) {
+                assert!(x >= 0 && x < COLS && y >= 0 && y < ROWS);
+            }
+            let mut g = Game::new(1);
+            g.reset(lvl);
+            let speed = g.speed_ms();
+            assert!(speed <= prev);
+            prev = speed;
+        }
+        let mut g = Game::new(1);
+        g.reset(0);
+        assert_eq!(g.level, 1);
+        g.reset(99);
+        assert_eq!(g.level, MAX_LEVEL);
+        assert_eq!(g.speed_ms(), MIN_SPEED_MS);
+    }
+
+    #[test]
+    fn api_handles_null_and_invalid() {
+        use std::ptr;
+        unsafe {
+            assert_eq!(snake_state(ptr::null_mut()), 0);
+            assert_eq!(snake_len(ptr::null_mut()), 0);
+            assert_eq!(snake_score(ptr::null_mut()), 0);
+            assert_eq!(snake_level(ptr::null_mut()), 0);
+            assert_eq!(snake_progress(ptr::null_mut()), 0);
+            assert_eq!(snake_cause(ptr::null_mut()), 0);
+            assert_eq!(snake_cell_x(ptr::null_mut(), 0), -1);
+            assert_eq!(snake_cell_y(ptr::null_mut(), 0), -1);
+            assert_eq!(snake_food_x(ptr::null_mut()), -1);
+            assert_eq!(snake_food_y(ptr::null_mut()), -1);
+            assert_eq!(snake_bonus_x(ptr::null_mut()), -1);
+            assert_eq!(snake_bonus_y(ptr::null_mut()), -1);
+            assert_eq!(snake_bonus_ttl(ptr::null_mut()), 0);
+            assert_eq!(snake_wall_count(ptr::null_mut()), 0);
+            assert_eq!(snake_wall_x(ptr::null_mut(), 0), -1);
+            assert_eq!(snake_wall_y(ptr::null_mut(), 0), -1);
+            assert_eq!(snake_speed_ms(ptr::null_mut()), 160);
+            assert_eq!(snake_tick(ptr::null_mut()), 0);
+            snake_destroy(ptr::null_mut());
+            snake_set_dir(ptr::null_mut(), 1);
+            snake_pause(ptr::null_mut());
+            snake_start(ptr::null_mut());
+            snake_reset(ptr::null_mut(), 1);
+        }
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        let head = g.head();
+        unsafe {
+            let p: *mut Game = &mut g;
+            snake_set_dir(p, 99);
+            assert_eq!(snake_cell_x(p, -1), -1);
+            assert_eq!(snake_cell_x(p, 9999), -1);
+            assert_eq!(snake_wall_x(p, 9999), -1);
+        }
+        g.tick();
+        assert_eq!(g.head(), (head.0 + 1, head.1));
     }
 }

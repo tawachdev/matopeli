@@ -42,7 +42,7 @@ const banner = $('banner'), bannerTitle = $('bannerTitle'), bannerSub = $('banne
 
 async function loadEngine(): Promise<SnakeExports | null> {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}engine.wasm`);
+    const res = await fetch('engine.wasm');
     if (!res.ok) return null;
     const bytes = await res.arrayBuffer();
     return (await WebAssembly.instantiate(bytes, {})).instance.exports as unknown as SnakeExports;
@@ -52,7 +52,9 @@ async function loadEngine(): Promise<SnakeExports | null> {
 }
 function loadBest(): number {
   try {
-    return +(localStorage.getItem('snake2_best') || 0);
+    const raw = localStorage.getItem('snake2_best');
+    const value = raw === null ? 0 : +raw;
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
   } catch {
     return 0;
   }
@@ -91,17 +93,21 @@ let best = loadBest();
 let startLevel = 1, acc = 0, last = performance.now();
 let muted = false, startScreen = true;
 let popup: { text: string; until: number } | null = null;
-let deathBannerAt: number | null = null;
+let endBannerAt: number | null = null;
+let endWon = false;
 let levelBannerAt: number | null = null;
 let flashUntil = 0;
 let shownScore = 0;
 const scoreEl = $('score');
+const levelEl = $('level');
+const dotsEl = $('dots');
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
 function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0.04) {
   if (muted) return;
   audioCtx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+  if (audioCtx.state === 'suspended') void audioCtx.resume();
   const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
   osc.type = type; osc.frequency.value = freq;
   gain.gain.setValueAtTime(vol, audioCtx.currentTime);
@@ -143,7 +149,7 @@ function showBanner(title: string, sub: string, showLevels: boolean, kind: Banne
 function hideBanner() { banner.classList.add('hidden'); }
 
 function startGame() {
-  if (deathBannerAt !== null || levelBannerAt !== null) return;
+  if (endBannerAt !== null || levelBannerAt !== null) return;
   engine.snake_reset(game, startLevel);
   engine.snake_start(game);
   acc = 0; last = performance.now();
@@ -173,12 +179,23 @@ function onDeath(now: number) {
   $('best').textContent = String(best);
   sfx.die();
   buzz(VIBRATE_MS);
-  deathBannerAt = now + DEATH_PAUSE_MS;
+  endBannerAt = now + DEATH_PAUSE_MS;
+  endWon = false;
+}
+function onWon(now: number) {
+  sfx.bonus();
+  buzz(VIBRATE_MS);
+  endBannerAt = now + DEATH_PAUSE_MS;
+  endWon = true;
 }
 function showDeathBanner() {
   const score = engine.snake_score(game);
   const cause = engine.snake_cause(game) === 1 ? 'Hit the wall' : 'Bit yourself';
   showBanner('Game over', `${cause} · Score ${score} · Best ${best} — Enter to retry`, false, 'over');
+}
+function showWonBanner() {
+  const score = engine.snake_score(game);
+  showBanner('Board cleared!', `Score ${score} · Best ${best} — Enter to play again`, false, 'over');
 }
 function onLevelUp(now: number) {
   sfx.level();
@@ -199,11 +216,13 @@ function frame(now: number) {
       else if (ev === 2) { sfx.bonus(); popup = { text: '+' + (engine.snake_score(game) - before), until: now + POPUP_MS }; }
       else if (ev === 3) { onDeath(now); break; }
       else if (ev === 4) { onLevelUp(now); break; }
+      else if (ev === 5) { onWon(now); break; }
     }
   }
-  if (deathBannerAt !== null && now >= deathBannerAt) {
-    deathBannerAt = null;
-    showDeathBanner();
+  if (endBannerAt !== null && now >= endBannerAt) {
+    endBannerAt = null;
+    if (endWon) showWonBanner();
+    else showDeathBanner();
   }
   if (levelBannerAt !== null && now >= levelBannerAt) {
     levelBannerAt = null;
@@ -245,7 +264,7 @@ function drawBonus(now: number) {
   ctx.fillRect(cx + 4, cy + 4, CELL_PX - 8, CELL_PX - 8);
 }
 function drawSnake(now: number) {
-  if (deathBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
+  if (endBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
   for (let i = length - 1; i >= 1; i--) drawCell(engine.snake_cell_x(game, i), engine.snake_cell_y(game, i), i % 2 ? DIM : INK);
   if (length === 0) return;
@@ -267,7 +286,7 @@ function render(now: number) {
     scoreEl.classList.add('pop');
   }
   scoreEl.textContent = String(score);
-  $('level').textContent = `Level ${engine.snake_level(game)}/${MAX_LEVEL}`;
+  levelEl.textContent = `Level ${engine.snake_level(game)}/${MAX_LEVEL}`;
   if (popup) {
     if (now > popup.until) popup = null;
     else {
@@ -279,12 +298,12 @@ function render(now: number) {
       ctx.textAlign = 'left';
     }
   }
-  const dots = $('dots'), progress = engine.snake_progress(game);
-  if (dots.children.length !== GOAL) {
-    dots.innerHTML = '';
-    for (let i = 0; i < GOAL; i++) dots.appendChild(document.createElement('i'));
+  const progress = engine.snake_progress(game);
+  if (dotsEl.children.length !== GOAL) {
+    dotsEl.innerHTML = '';
+    for (let i = 0; i < GOAL; i++) dotsEl.appendChild(document.createElement('i'));
   }
-  [...dots.children].forEach((segment, i) => segment.classList.toggle('on', i < progress));
+  [...dotsEl.children].forEach((segment, i) => segment.classList.toggle('on', i < progress));
 }
 
 function confirmKey() {
@@ -375,11 +394,39 @@ window.addEventListener('pageshow', (e) => {
   destroyed = false;
   game = engine.snake_create(BigInt(Date.now()));
   shownScore = 0; popup = null; flashUntil = 0;
-  deathBannerAt = null; levelBannerAt = null;
+  endBannerAt = null; endWon = false; levelBannerAt = null;
   startScreen = true;
   showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
 });
 
 showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
-if ('serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+interface MatopeliDebug {
+  score(): number;
+  level(): number;
+  state(): number;
+  progress(): number;
+  length(): number;
+  head(): [number, number];
+  food(): [number, number];
+  dir(): [number, number];
+  banner(): string;
+}
+if (import.meta.env.DEV) {
+  (window as unknown as { __matopeli?: MatopeliDebug }).__matopeli = {
+    score: () => engine.snake_score(game),
+    level: () => engine.snake_level(game),
+    state: () => engine.snake_state(game),
+    progress: () => engine.snake_progress(game),
+    length: () => engine.snake_len(game),
+    head: () => [engine.snake_cell_x(game, 0), engine.snake_cell_y(game, 0)],
+    food: () => [engine.snake_food_x(game), engine.snake_food_y(game)],
+    dir: () => [
+      engine.snake_cell_x(game, 0) - engine.snake_cell_x(game, 1),
+      engine.snake_cell_y(game, 0) - engine.snake_cell_y(game, 1),
+    ],
+    banner: () => (banner.classList.contains('hidden') ? 'hidden' : bannerTitle.textContent || ''),
+  };
+}
 requestAnimationFrame(frame);

@@ -7,8 +7,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
       - run: cargo test --manifest-path engine/Cargo.toml
       - run: cargo build --release --manifest-path engine/Cargo.toml --target wasm32-unknown-unknown
       - name: committed wasm matches engine source
@@ -20,14 +18,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx astro check
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run preview -- --port 4321 &
-      - run: sleep 3 && BASE=http://localhost:4321 node tests/e2e.mjs
+      - name: smoke tests on production preview
+        run: |
+          set -e
+          (npm run preview -- --port 4321 > /tmp/preview.log 2>&1 & echo $! > /tmp/preview.pid)
+          trap 'kill $(cat /tmp/preview.pid)' EXIT
+          for i in $(seq 1 30); do curl -sf http://localhost:4321/ && break || sleep 1; done
+          BASE=http://localhost:4321 npm run test:e2e
+          BASE=http://localhost:4321 npm run test:offline
+      - name: state tests on dev server
+        run: |
+          set -e
+          (npm run dev -- --port 4322 > /tmp/dev.log 2>&1 & echo $! > /tmp/dev.pid)
+          trap 'kill $(cat /tmp/dev.pid)' EXIT
+          for i in $(seq 1 60); do curl -sf http://localhost:4322/ && break || sleep 1; done
+          BASE=http://localhost:4322 npm run test:state
         env:
           CI: true

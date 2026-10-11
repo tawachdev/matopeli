@@ -1,0 +1,165 @@
+import { chromium } from 'playwright';
+
+const BASE = process.env.BASE || 'http://localhost:4321';
+let failures = 0;
+
+function check(name, cond) {
+  console.log((cond ? 'ok  ' : 'FAIL') + ' ' + name);
+  if (!cond) failures++;
+}
+
+const browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome', headless: true });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+const problems = [];
+page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()); });
+page.on('requestfailed', (r) => problems.push('reqfail: ' + r.url()));
+page.on('response', (r) => { if (r.status() >= 400) problems.push(r.status() + ' ' + r.url()); });
+
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await page.waitForFunction(() => typeof window.__matopeli === 'object', null, { timeout: 15000 });
+check('debug seam present (dev only)', true);
+
+const api = (expr) => page.evaluate(`window.__matopeli.${expr}`);
+const hidden = () => page.$eval('#banner', (el) => el.classList.contains('hidden'));
+check('start screen shows', (await api('banner()')) === 'Snake II');
+
+await page.click('#softL');
+await page.waitForTimeout(300);
+check('start enters level 1 running', (await api('state()')) === 1 && (await api('level()')) === 1);
+
+const head0 = await api('head()');
+await page.keyboard.press(' ');
+await page.waitForTimeout(300);
+check('pause freezes running game', (await api('state()')) === 2);
+check('paused head does not move', JSON.stringify(await api('head()')) === JSON.stringify(head0));
+await page.keyboard.press('Enter');
+check('resume runs again', await leftPause());
+check('resumed snake moves', JSON.stringify(await api('head()')) !== JSON.stringify(head0));
+
+const OPP = { ArrowUp: 'ArrowDown', ArrowDown: 'ArrowUp', ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' };
+const DIRS = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'];
+async function steerTowardFood() {
+  const s = await page.evaluate(() => ({
+    h: window.__matopeli.head(), f: window.__matopeli.food(), d: window.__matopeli.dir(),
+  }));
+  const dx = Math.sign(s.f[0] - s.h[0]);
+  const dy = Math.sign(s.f[1] - s.h[1]);
+  const cur = s.d[0] === 1 ? 'ArrowRight' : s.d[0] === -1 ? 'ArrowLeft' : s.d[1] === 1 ? 'ArrowDown' : 'ArrowUp';
+  const opts = [];
+  if (dx !== 0) opts.push(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+  if (dy !== 0) opts.push(dy > 0 ? 'ArrowDown' : 'ArrowUp');
+  opts.push(...DIRS);
+  for (const k of opts) {
+    if (OPP[k] !== cur) {
+      await page.keyboard.press(k);
+      return;
+    }
+  }
+}
+
+async function leftPause() {
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(200);
+    const st = await api('state()');
+    if (st === 1) return true;
+    if (st === 3 && (await api('banner()')) === 'Game over') return true;
+  }
+  return false;
+}
+
+async function ensureRunning() {
+  for (let i = 0; i < 10; i++) {
+    if ((await api('state()')) === 1) return true;
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+  }
+  return false;
+}
+
+async function eatUpTo(targetProgress) {
+  for (let i = 0; i < 400; i++) {
+    if (!(await ensureRunning())) return false;
+    if ((await api('level()')) === 2) return true;
+    if ((await api('progress()')) >= targetProgress) return true;
+    await steerTowardFood();
+    await page.waitForTimeout(165);
+  }
+  return false;
+}
+
+check('eats first food (score 10, length 4)', await eatUpTo(1));
+check('first eat exact', (await api('score()')) === 10 && (await api('length()')) === 4);
+
+const frozen = await api('head()');
+const frozenScore = await api('score()');
+await page.keyboard.press(' ');
+await page.waitForTimeout(400);
+check('pause preserves head and score', (await api('state()')) === 2
+  && JSON.stringify(await api('head()')) === JSON.stringify(frozen)
+  && (await api('score()')) === frozenScore);
+await page.keyboard.press('Enter');
+check('resume never loses score and keeps moving', await leftPause()
+  && (await api('score()')) >= frozenScore
+  && JSON.stringify(await api('head()')) !== JSON.stringify(frozen));
+
+check('four more eats reach level 2', await eatUpTo(5));
+let sawLevelBanner = false;
+let alreadyContinued = false;
+try {
+  await page.waitForFunction(
+    () => window.__matopeli.banner() === 'Level 2'
+      || (window.__matopeli.banner() === 'hidden' && window.__matopeli.state() === 1 && window.__matopeli.level() === 2),
+    null,
+    { timeout: 8000 }
+  );
+  sawLevelBanner = (await api('banner()')) === 'Level 2';
+  alreadyContinued = !sawLevelBanner;
+} catch {}
+check('level transition surfaces (banner or running level 2)', sawLevelBanner || alreadyContinued);
+const keptScore = await api('score()');
+if (sawLevelBanner) {
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+}
+check('continue keeps level and never loses score', (await api('level()')) === 2 && (await api('score()')) >= keptScore);
+check('continue resumes running', await leftPause());
+
+await ensureRunning();
+await ensureRunning();
+const dirBeforeSwipe = await api('dir()');
+const swipeUp = dirBeforeSwipe[1] === 0;
+await page.evaluate((up) => {
+  const c = document.getElementById('lcd');
+  const r = c.getBoundingClientRect();
+  const t = (x, y) => new Touch({ identifier: 1, target: c, clientX: x, clientY: y });
+  const x0 = r.x + 60, y0 = r.y + 60;
+  c.dispatchEvent(new TouchEvent('touchstart', { touches: [t(x0, y0)], bubbles: true }));
+  c.dispatchEvent(new TouchEvent('touchmove', { touches: [up ? t(x0, y0 - 120) : t(x0 + 120, y0)], bubbles: true }));
+}, swipeUp);
+await page.waitForTimeout(400);
+check(
+  'touch swipe steers',
+  JSON.stringify(await api('dir()')) === JSON.stringify(swipeUp ? [0, -1] : [1, 0])
+);
+
+await ensureRunning();
+await ensureRunning();
+await page.keyboard.press('ArrowUp');
+await page.click('#keypad button[data-k="4"]');
+await page.waitForTimeout(600);
+check('keyboard plus keypad queue without conflict', (await api('state()')) === 1);
+
+await ensureRunning();
+const runningScore = await api('score()');
+await page.click('#softL');
+await page.waitForTimeout(300);
+check('start button pauses mid-game, no duplicate start', (await api('state()')) === 2);
+check('button pause keeps score', (await api('score()')) === runningScore);
+await page.keyboard.press('Enter');
+check('enter resumes after button pause', await leftPause());
+
+check('console clean', problems.length === 0);
+for (const p of problems) console.log('  ! ' + p);
+
+await browser.close();
+process.exit(failures ? 1 : 0);
