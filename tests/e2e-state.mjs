@@ -26,6 +26,7 @@ check('start screen shows', (await api('banner()')) === 'Snake II');
 await page.click('#softL');
 await page.waitForTimeout(300);
 check('start enters level 1 running', (await api('state()')) === 1 && (await api('level()')) === 1);
+check('audio unlocks to running after gesture', (await api('audio()')) === 'running');
 
 const head0 = await api('head()');
 await page.keyboard.press(' ');
@@ -102,6 +103,16 @@ await page.keyboard.press('Enter');
 check('resume never loses score and keeps moving', await leftPause()
   && (await api('score()')) >= frozenScore
   && JSON.stringify(await api('head()')) !== JSON.stringify(frozen));
+
+await ensureRunning();
+const tapScore = await api('score()');
+await page.keyboard.press(' ');
+await page.waitForTimeout(300);
+await page.locator('#bannerTitle').click();
+await page.waitForTimeout(400);
+check('tap on pause resumes instead of restarting', (await api('banner()')) === 'hidden'
+  && (await api('state()')) === 1
+  && (await api('score()')) >= tapScore);
 
 check('four more eats reach level 2', await eatUpTo(5));
 await page.waitForFunction(() => window.__matopeli.banner() === 'Level 2', null, { timeout: 8000 });

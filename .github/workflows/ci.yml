@@ -7,6 +7,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: wasm32-unknown-unknown
       - run: cargo test --manifest-path engine/Cargo.toml
       - run: cargo build --release --manifest-path engine/Cargo.toml --target wasm32-unknown-unknown
       - name: committed wasm matches engine source

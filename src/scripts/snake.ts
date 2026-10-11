@@ -176,19 +176,31 @@ let lastRank = 0;
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
+function ensureAudio() {
+  if (!soundOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    if (audioCtx.state === 'suspended') void audioCtx.resume();
+  } catch {}
+}
 function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0.04, style: SoundStyle = soundStyle) {
   if (!soundOn) return;
   let f = freq, t = type, v = vol;
   if (style === 'soft') { t = 'sine'; f = freq * 0.9; v = vol * 0.75; }
   else if (style === 'retro') { f = freq * 0.55; v = vol * 1.25; }
-  audioCtx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-  if (audioCtx.state === 'suspended') void audioCtx.resume();
-  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-  osc.type = t; osc.frequency.value = f;
-  gain.gain.setValueAtTime(v, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000);
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  osc.start(); osc.stop(audioCtx.currentTime + ms / 1000);
+  ensureAudio();
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = t; osc.frequency.value = f;
+    gain.gain.setValueAtTime(v, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + ms / 1000);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + ms / 1000);
+  } catch {}
+}
+for (const evt of ['pointerdown', 'touchstart', 'touchend', 'click']) {
+  window.addEventListener(evt, ensureAudio, { capture: true, passive: true });
 }
 const sfx = {
   eat:   () => beep(1250, 55),
@@ -604,7 +616,12 @@ canvas.addEventListener('touchmove', (e) => {
   swipeStart = [e.touches[0].clientX, e.touches[0].clientY];
   e.preventDefault();
 }, { passive: false });
-canvas.addEventListener('click', () => { if (!banner.classList.contains('hidden')) startGame(); });
+canvas.addEventListener('click', () => { if (!banner.classList.contains('hidden')) confirmKey(); });
+banner.addEventListener('click', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (t && t.closest('button, input')) return;
+  if (!banner.classList.contains('hidden')) confirmKey();
+});
 function applyScan() {
   if (scanEl) scanEl.style.display = loadPref(PREF_SCAN, '1') === '1' ? '' : 'none';
 }
@@ -759,6 +776,7 @@ applyScan();
 applyTheme();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && engine.snake_state(game) === 1) togglePause();
+  if (!document.hidden) ensureAudio();
 });
 window.addEventListener('pagehide', () => {
   if (destroyed) return;
@@ -789,6 +807,7 @@ interface MatopeliDebug {
   food(): [number, number];
   dir(): [number, number];
   banner(): string;
+  audio(): string;
 }
 if (import.meta.env.DEV) {
   (window as unknown as { __matopeli?: MatopeliDebug }).__matopeli = {
@@ -804,6 +823,7 @@ if (import.meta.env.DEV) {
       engine.snake_cell_y(game, 0) - engine.snake_cell_y(game, 1),
     ],
     banner: () => (banner.classList.contains('hidden') ? 'hidden' : bannerTitle.textContent || ''),
+    audio: () => (audioCtx ? audioCtx.state : 'none'),
   };
 }
 requestAnimationFrame(frame);

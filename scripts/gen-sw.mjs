@@ -20,7 +20,7 @@ for (const f of readdirSync(join(dist, '_astro'))) {
   if (f.endsWith('.js') || f.endsWith('.css')) hashed.push('/_astro/' + f);
 }
 
-const CORE = ['./', './index.html', './engine.wasm'];
+const CORE = ['./', './index.html', './engine.wasm', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png'];
 const fingerprint = [...CORE.slice(1), ...hashed]
   .map((a) => {
     const p = join(dist, a.slice(1));
@@ -34,4 +34,4 @@ const out = template
   .replace('__MATOPELI_VERSION__', ver)
   .replace('/*__MATOPELI_ASSETS__*/', hashed.map((a) => `'${a}'`).join(', '));
 writeFileSync(join(dist, 'sw.js'), out);
-console.log(`sw.js: version ${ver}, precache ${3 + hashed.length} assets`);
+console.log(`sw.js: version ${ver}, precache ${CORE.length + hashed.length} assets`);

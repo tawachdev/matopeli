@@ -1,6 +1,6 @@
 const VERSION = '__MATOPELI_VERSION__';
 const HASHED = [/*__MATOPELI_ASSETS__*/];
-const CORE = ['./', './index.html', './engine.wasm'];
+const CORE = ['./', './index.html', './engine.wasm', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png'];
 const PRECACHE = [...CORE, ...HASHED];
 const CACHE = 'matopeli-' + VERSION;
 const PREFIX = 'matopeli-';
