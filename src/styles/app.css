@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-lcd-bg: #9aa763;
-  --color-lcd-ink: #232a12;
-  --color-lcd-dim: #5a6335;
-  --color-nokiablue-face: #33507e;
-  --color-nokiablue-dark: #243c61;
+  --color-lcd-bg: #b3c948;
+  --color-lcd-ink: #26300f;
+  --color-lcd-dim: #6d7a33;
+  --color-nokiablue-face: #2e4066;
+  --color-nokiablue-dark: #1f2c4c;
   --color-nokkey: #d4d9e2;
   --color-nokkey-dark: #a9b1c0;
   --color-accent: #febb02;
@@ -66,6 +66,34 @@ body {
 .scanlines {
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 3px);
 }
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.14) 1px, transparent 1.4px);
+  background-size: 4px 4px;
+}
+.screen-arc {
+  border-radius: 70px 70px 18px 18px / 44px 44px 18px 18px;
+  background: linear-gradient(#dde1e9, #b7bdc9);
+}
+#navi span {
+  background: linear-gradient(#f2f5f9, #c9d0dc);
+  position: relative;
+}
+#navi span::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 3px;
+  background: #2fbfa0;
+  box-shadow: 0 0 6px rgba(47, 191, 160, 0.8);
+}
+.keypad b { color: #1f9d55; }
 canvas { image-rendering: pixelated; touch-action: none; }
 .banner { display: flex; animation: bannerIn 0.18s ease-out; }
 .banner.hidden { display: none; }

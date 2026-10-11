@@ -75,7 +75,8 @@ const engine: SnakeExports = maybeEngine;
 
 const GOAL = engine.snake_goal(), MAX_LEVEL = engine.snake_max_level();
 const CELL_PX = canvas.width / engine.snake_cols();
-const INK = '#232a12', PAPER = '#9aa763', DIM = '#6b743f';
+const BOARD_Y = 30;
+const INK = '#26300f', PAPER = '#b3c948', DIM = '#6d7a33';
 const MAX_FRAME_MS = 250;
 const FOOD_BLINK_MS = 250;
 const BONUS_BLINK_MS = 120;
@@ -232,21 +233,71 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 
+const FONT3X5: Record<string, string[]> = {
+  '0': ['111', '101', '101', '101', '111'],
+  '1': ['010', '110', '010', '010', '111'],
+  '2': ['111', '001', '111', '100', '111'],
+  '3': ['111', '001', '111', '001', '111'],
+  '4': ['101', '101', '111', '001', '001'],
+  '5': ['111', '100', '111', '001', '111'],
+  '6': ['111', '100', '111', '101', '111'],
+  '7': ['111', '001', '001', '010', '010'],
+  '8': ['111', '101', '111', '101', '111'],
+  '9': ['111', '101', '111', '001', '111'],
+};
+const APPLE = ['..#..', '.###.', '#####', '.###.', '..#..'];
+const BUG = ['#.#.#', '.###.', '#####', '.###.', '#.#.#'];
+
+function drawGlyph(map: string[], x: number, y: number, s: number, color: string) {
+  ctx.fillStyle = color;
+  for (let r = 0; r < map.length; r++) {
+    for (let c = 0; c < map[r].length; c++) {
+      if (map[r][c] === '#' || map[r][c] === '1') ctx.fillRect(x + c * s, y + r * s, s, s);
+    }
+  }
+}
+function drawNumber(value: number, digits: number, x: number, y: number, s: number) {
+  const text = String(value).padStart(digits, '0');
+  for (let i = 0; i < text.length; i++) {
+    drawGlyph(FONT3X5[text[i]], x + i * 4 * s, y, s, INK);
+  }
+}
+function drawLcdHeader() {
+  drawNumber(engine.snake_score(game), 4, 6, 4, 3);
+  const bonusTtl = engine.snake_bonus_ttl(game);
+  if (bonusTtl > 0) {
+    drawGlyph(BUG, canvas.width - 66, 5, 3, INK);
+    drawNumber(bonusTtl, 2, canvas.width - 46, 4, 3);
+  } else {
+    drawGlyph(APPLE, canvas.width - 62, 5, 3, INK);
+    drawNumber(GOAL - engine.snake_progress(game), 2, canvas.width - 44, 4, 3);
+  }
+  ctx.fillStyle = INK;
+  ctx.fillRect(4, 24, canvas.width - 8, 2);
+}
 function drawCell(x: number, y: number, color: string, solid = false) {
   ctx.fillStyle = color;
   const pad = solid ? 0 : 1;
-  ctx.fillRect(x * CELL_PX + pad, y * CELL_PX + pad, CELL_PX - pad * 2, CELL_PX - pad * 2);
+  ctx.fillRect(x * CELL_PX + pad, y * CELL_PX + BOARD_Y + pad, CELL_PX - pad * 2, CELL_PX - pad * 2);
 }
 function drawBoard(now: number) {
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, BOARD_Y, canvas.width, 2);
+  ctx.fillRect(0, BOARD_Y, 2, canvas.height - BOARD_Y);
+  ctx.fillRect(canvas.width - 2, BOARD_Y, 2, canvas.height - BOARD_Y);
+  ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
   const wallCount = engine.snake_wall_count(game);
   for (let i = 0; i < wallCount; i++) {
     const x = engine.snake_wall_x(game, i), y = engine.snake_wall_y(game, i);
     drawCell(x, y, INK, true);
     ctx.fillStyle = PAPER;
-    ctx.fillRect(x * CELL_PX, y * CELL_PX, CELL_PX, 1);
-    ctx.fillRect(x * CELL_PX, y * CELL_PX, 1, CELL_PX);
+    ctx.fillRect(x * CELL_PX, y * CELL_PX + BOARD_Y, CELL_PX, 1);
+    ctx.fillRect(x * CELL_PX, y * CELL_PX + BOARD_Y, 1, CELL_PX);
   }
-  if (Math.floor(now / FOOD_BLINK_MS) % 2 === 0) drawCell(engine.snake_food_x(game), engine.snake_food_y(game), INK);
+  if (Math.floor(now / FOOD_BLINK_MS) % 2 === 0) {
+    const fx = engine.snake_food_x(game), fy = engine.snake_food_y(game);
+    drawGlyph(APPLE, fx * CELL_PX + 1, fy * CELL_PX + BOARD_Y, 2, INK);
+  }
   drawBonus(now);
   drawSnake(now);
 }
@@ -255,28 +306,29 @@ function drawBonus(now: number) {
   if (bx < 0) return;
   const by = engine.snake_bonus_y(game), ttl = engine.snake_bonus_ttl(game);
   if (ttl <= BONUS_WARN_TTL && Math.floor(now / BONUS_BLINK_MS) % 2 !== 0) return;
-  const cx = bx * CELL_PX, cy = by * CELL_PX;
-  ctx.fillStyle = INK;
-  ctx.fillRect(cx + 1, cy + 1, CELL_PX - 2, CELL_PX - 2);
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(cx + 3, cy + 3, CELL_PX - 6, CELL_PX - 6);
-  ctx.fillStyle = INK;
-  ctx.fillRect(cx + 4, cy + 4, CELL_PX - 8, CELL_PX - 8);
+  drawGlyph(BUG, bx * CELL_PX, by * CELL_PX + BOARD_Y - 1, 2, INK);
 }
 function drawSnake(now: number) {
   if (endBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
-  for (let i = length - 1; i >= 1; i--) drawCell(engine.snake_cell_x(game, i), engine.snake_cell_y(game, i), i % 2 ? DIM : INK);
+  for (let i = length - 1; i >= 1; i--) {
+    const x = engine.snake_cell_x(game, i), y = engine.snake_cell_y(game, i);
+    drawCell(x, y, INK, true);
+    ctx.fillStyle = PAPER;
+    const ox = (x + y) % 2 === 0 ? 3 : 2;
+    ctx.fillRect(x * CELL_PX + ox, y * CELL_PX + BOARD_Y + 3, 4, 4);
+  }
   if (length === 0) return;
   const hx = engine.snake_cell_x(game, 0), hy = engine.snake_cell_y(game, 0);
   drawCell(hx, hy, INK, true);
   ctx.fillStyle = PAPER;
-  ctx.fillRect(hx * CELL_PX + 2, hy * CELL_PX + 2, 2, 2);
-  ctx.fillRect(hx * CELL_PX + 6, hy * CELL_PX + 2, 2, 2);
+  ctx.fillRect(hx * CELL_PX + 2, hy * CELL_PX + BOARD_Y + 2, 2, 2);
+  ctx.fillRect(hx * CELL_PX + 6, hy * CELL_PX + BOARD_Y + 2, 2, 2);
 }
 function render(now: number) {
   canvas.style.filter = now < flashUntil ? 'invert(0.9)' : '';
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawLcdHeader();
   drawBoard(now);
   const score = engine.snake_score(game);
   if (score !== shownScore) {
@@ -294,7 +346,7 @@ function render(now: number) {
       ctx.fillStyle = INK;
       ctx.font = 'bold 13px "Courier New",monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 24 - age * 10);
+      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 64 - age * 10);
       ctx.textAlign = 'left';
     }
   }
