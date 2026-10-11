@@ -187,6 +187,9 @@ function onDeath(now: number) {
   endWon = false;
 }
 function onWon(now: number) {
+  const score = engine.snake_score(game);
+  if (score > best) { best = score; saveBest(best); }
+  $('best').textContent = String(best);
   sfx.bonus();
   buzz(VIBRATE_MS);
   endBannerAt = now + DEATH_PAUSE_MS;
@@ -519,3 +522,5 @@ if (import.meta.env.DEV) {
   };
 }
 requestAnimationFrame(frame);
+
+export {};
