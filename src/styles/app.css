@@ -1,13 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* shadcn-style tokens, tuned for the 3310 tribute */
+@theme {
+  --color-lcd-bg: #9aa763;
+  --color-lcd-ink: #232a12;
+  --color-lcd-dim: #5a6335;
+  --color-nokiablue-face: #33507e;
+  --color-nokiablue-dark: #243c61;
+  --color-nokkey: #d4d9e2;
+  --color-nokkey-dark: #a9b1c0;
+  --color-accent: #febb02;
+  --font-nokia: Verdana, Geneva, sans-serif;
+  --font-lcd: "Courier New", monospace;
+}
+
 :root {
-  --background: 222 20% 9%;
-  --foreground: 220 15% 92%;
-  --muted: 220 10% 62%;
-  --accent: 42 100% 51%;
   --radius: 0.75rem;
 }
 
@@ -15,23 +21,40 @@ body {
   background: radial-gradient(900px 500px at 50% -5%, #2b3038, #14161a);
 }
 
-/* shadcn-like button variants (no React runtime needed) */
-@layer components {
-  .btn-key {
-    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-[7px] text-sm font-bold tracking-wide transition active:translate-y-[2px];
-    color: #23304d;
-    background: linear-gradient(#d4d9e2, #a9b1c0);
-    box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4);
-  }
-  .btn-key:active { box-shadow: 0 1px 0 #6d7482; }
-  .level-btn {
-    width: 30px; height: 30px; border-radius: 6px;
-    border: 2px solid #232a12; background: transparent; color: #232a12;
-    font-weight: bold; cursor: pointer; font-family: "Courier New", monospace;
-  }
+.btn-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  padding: 7px 16px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  transition: translate 0.05s;
+  touch-action: manipulation;
+  color: #23304d;
+  background: linear-gradient(#d4d9e2, #a9b1c0);
+  box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4);
 }
+.btn-key:active {
+  translate: 0 2px;
+  box-shadow: 0 1px 0 #6d7482;
+}
+.level-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 2px solid #232a12;
+  background: transparent;
+  color: #232a12;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+}
+.level-btn.picked { background: #232a12; color: #9aa763; }
+.dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
+.dots i.on { background: #febb02; }
 
-/* shapes Tailwind can't express: 3310 curves, LCD glass, keypad */
 .phone-body {
   border-radius: 60px 60px 70px 70px / 40px 40px 80px 80px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55),
@@ -43,10 +66,7 @@ body {
 .scanlines {
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 3px);
 }
-canvas { image-rendering: pixelated; }
-.level-btn.picked { background: #232a12; color: #9aa763; }
-.dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
-.dots i.on { background: #febb02; }
+canvas { image-rendering: pixelated; touch-action: none; }
 .banner { display: flex; animation: bannerIn 0.18s ease-out; }
 .banner.hidden { display: none; }
 @keyframes bannerIn {
@@ -58,8 +78,6 @@ canvas { image-rendering: pixelated; }
   50% { transform: scale(1.4); color: #febb02; }
 }
 .phone-body { user-select: none; -webkit-user-select: none; }
-.btn-key { touch-action: manipulation; }
-canvas { touch-action: none; }
 @media (max-width: 640px) {
   .phone-body { border-radius: 0; min-height: 100dvh; padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
   #keypad { gap: 10px; }
@@ -67,7 +85,4 @@ canvas { touch-action: none; }
 }
 @media (max-height: 740px) {
   .phone-body { padding-top: 10px; }
-}
-@media (max-width: 640px) {
-  .phone-body { border-radius: 0; min-height: 100dvh; }
 }
