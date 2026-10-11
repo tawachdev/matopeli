@@ -5,7 +5,7 @@
 [![WebAssembly](https://img.shields.io/badge/runs-WebAssembly-blue.svg)](public/engine.wasm)
 [![No dependencies](https://img.shields.io/badge/offline-yes-green.svg)](#offline-support)
 
-Nokia 3310 tribute. The whole game runs on a 26&nbsp;KB dependency-free
+Nokia 3310 tribute. The whole game runs on a 32&nbsp;KB dependency-free
 WASM module — no CDN, no fonts, no images, no backend.
 
 ![Gameplay](docs/shot-gameplay.png)
@@ -56,7 +56,7 @@ npm run preview             # serve production locally
 
 ```text
 engine/src/lib.rs  →  Rust game logic (grid, mazes, bonus, scoring)
-        │  cargo build --target wasm32-unknown-unknown (26 KB, zero deps)
+        │  cargo build --target wasm32-unknown-unknown (32 KB, zero deps)
         ▼
 public/engine.wasm →  loaded by src/scripts/snake.ts (render + input + beeps)
         │
