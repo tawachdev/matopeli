@@ -62,6 +62,23 @@ body {
   color: #9aa763;
 }
 .level-btn.picked { background: #232a12; color: #9aa763; }
+.progress {
+  width: 104px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  align-self: center;
+}
+.progress .bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: #febb02;
+  transition: width 0.22s ease-out, transform 0.22s ease-out;
+}
+.progress .bar.roll { transform: translateX(100%); }
 .level-input {
   width: 116px;
   padding: 3px 6px;
@@ -87,6 +104,71 @@ body {
   list-style: none;
 }
 .hall li { white-space: nowrap; }
+.settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #c3ccdb;
+  background: rgba(255, 255, 255, 0.06);
+  transition: translate 0.06s ease-out, color 0.12s ease-out, background-color 0.12s ease-out;
+  touch-action: manipulation;
+}
+.settings-btn:active { translate: 0 1px; }
+.settings-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.settings {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(9, 11, 16, 0.72);
+}
+.settings.hidden { display: none; }
+.settings-card {
+  width: 100%;
+  max-width: 300px;
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(#2e4066, #1f2c4c);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+.settings-title {
+  text-align: center;
+  font-size: 15px;
+  letter-spacing: 3px;
+  color: #eef2f8;
+  margin-bottom: 2px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dbe2ee;
+  font-size: 13px;
+  transition: background-color 0.12s ease-out;
+  touch-action: manipulation;
+}
+.setting-row:hover { background: rgba(255, 255, 255, 0.1); }
+.setting-row em {
+  font-style: normal;
+  font-weight: 700;
+  min-width: 34px;
+  text-align: right;
+  color: #1f9d55;
+}
+.setting-row em.off { color: #8a93a6; }
+.settings-close { width: 100%; margin-top: 4px; }
 .dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
 .dots i.on { background: #febb02; }
 

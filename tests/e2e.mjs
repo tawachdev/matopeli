@@ -66,6 +66,20 @@ await page.click('#softL');
 await page.waitForTimeout(300);
 check('typed level input starts level 20', (await page.textContent('#level')) === 'Level 20');
 
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(500);
+await page.click('#btnSettings');
+await page.waitForTimeout(200);
+check('settings panel opens', await page.$eval('#settings', (el) => !el.classList.contains('hidden')));
+check('settings has 3 toggles', (await page.$$('.setting-row')).length === 3);
+await page.click('.setting-row[data-setting="sound"]');
+await page.waitForTimeout(120);
+check('sound toggle flips to Off', (await page.$eval('#setSound', (el) => el.textContent)) === 'Off');
+check('sound pref persisted', await page.evaluate(() => localStorage.getItem('snake2_sound') === '0'));
+await page.click('#settingsClose');
+await page.waitForTimeout(120);
+check('settings closes', await page.$eval('#settings', (el) => el.classList.contains('hidden')));
+
 await page.evaluate(() => localStorage.setItem('snake2_scores', JSON.stringify([500, 300, 120])));
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);

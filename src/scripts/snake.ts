@@ -98,6 +98,23 @@ function recordScore(score: number): number {
   return at >= 0 ? at + 1 : 0;
 }
 
+function loadPref(key: string, dflt: string): string {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? dflt : v;
+  } catch {
+    return dflt;
+  }
+}
+function savePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+const PREF_SOUND = 'snake2_sound';
+const PREF_VIBRATE = 'snake2_vibrate';
+const PREF_SCAN = 'snake2_scan';
+
 const maybeEngine = await loadEngine();
 if (!maybeEngine) {
   bannerTitle.textContent = 'No engine';
@@ -119,34 +136,39 @@ const SWIPE_MIN_PX = 18;
 const POPUP_MS = 900;
 const VIBRATE_MS = 90;
 const DEATH_PAUSE_MS = 900;
-const LEVEL_FLASH_MS = 650;
+const LEVEL_FLASH_MS = 400;
 const DEATH_BLINK_MS = 150;
 
 let game = engine.snake_create(BigInt(Date.now()));
 let destroyed = false;
 let best = loadBest();
 let startLevel = 1, acc = 0, last = performance.now();
-let muted = false, startScreen = true;
+let soundOn = loadPref(PREF_SOUND, '1') === '1';
+let vibrateOn = loadPref(PREF_VIBRATE, '1') === '1';
+let startScreen = true;
+let rolling = false;
 let popup: { text: string; until: number } | null = null;
 let endBannerAt: number | null = null;
 let endWon = false;
 let levelBannerAt: number | null = null;
 let autoContinueAt: number | null = null;
-const AUTO_CONTINUE_MS = 1500;
+const AUTO_CONTINUE_MS = 1000;
 let flashUntil = 0;
 let shownScore = 0;
 let lastEatAt = 0;
 const scoreEl = $('score');
 const levelEl = $('level');
-const dotsEl = $('dots');
+const barEl = $('progressBar');
 const levelInput = $('levelInput') as HTMLInputElement;
 const hallEl = $('hall');
+const settingsEl = $('settings');
+const scanEl = document.querySelector('.scanlines') as HTMLElement | null;
 let lastRank = 0;
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
 function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0.04) {
-  if (muted) return;
+  if (!soundOn) return;
   audioCtx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
   if (audioCtx.state === 'suspended') void audioCtx.resume();
   const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
@@ -244,6 +266,7 @@ function continueLevel() {
   hideBanner();
 }
 function buzz(ms: number) {
+  if (!vibrateOn) return;
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch {}
 }
 function togglePause() {
@@ -289,6 +312,20 @@ function onLevelUp(now: number) {
   sfx.level();
   flashUntil = now + LEVEL_FLASH_MS;
   levelBannerAt = now + LEVEL_FLASH_MS;
+  rolling = true;
+  barEl.style.transition = 'none';
+  barEl.style.width = '100%';
+  void barEl.offsetWidth;
+  barEl.style.transition = '';
+  barEl.classList.add('roll');
+  window.setTimeout(() => {
+    barEl.classList.remove('roll');
+    barEl.style.transition = 'none';
+    barEl.style.width = '0%';
+    void barEl.offsetWidth;
+    barEl.style.transition = '';
+    rolling = false;
+  }, 240);
 }
 
 function frame(now: number) {
@@ -475,11 +512,7 @@ function render(now: number) {
     }
   }
   const progress = engine.snake_progress(game);
-  if (dotsEl.children.length !== GOAL) {
-    dotsEl.innerHTML = '';
-    for (let i = 0; i < GOAL; i++) dotsEl.appendChild(document.createElement('i'));
-  }
-  [...dotsEl.children].forEach((segment, i) => segment.classList.toggle('on', i < progress));
+  if (!rolling) barEl.style.width = (progress / GOAL) * 100 + '%';
 }
 
 function confirmKey() {
@@ -554,11 +587,52 @@ canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
 }, { passive: false });
 canvas.addEventListener('click', () => { if (!banner.classList.contains('hidden')) startGame(); });
-($('btnSound') as HTMLButtonElement).onclick = () => {
-  muted = !muted;
-  ($('btnSound') as HTMLButtonElement).textContent = muted ? 'Sound off' : 'Sound on';
-  if (!muted) sfx.click();
+function applyScan() {
+  if (scanEl) scanEl.style.display = loadPref(PREF_SCAN, '1') === '1' ? '' : 'none';
+}
+function setSettingLabel(id: string, on: boolean) {
+  const el = $(id);
+  el.textContent = on ? 'On' : 'Off';
+  el.classList.toggle('off', !on);
+}
+function refreshSettings() {
+  setSettingLabel('setSound', soundOn);
+  setSettingLabel('setVibrate', vibrateOn);
+  setSettingLabel('setScan', loadPref(PREF_SCAN, '1') === '1');
+}
+function toggleSettings(open?: boolean) {
+  const hide = open === undefined ? !settingsEl.classList.contains('hidden') : !open;
+  settingsEl.classList.toggle('hidden', hide);
+  if (!hide) refreshSettings();
+}
+($('btnSettings') as HTMLButtonElement).onclick = (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  sfx.click();
+  toggleSettings(true);
 };
+($('settingsClose') as HTMLButtonElement).onclick = () => { sfx.click(); toggleSettings(false); };
+settingsEl.addEventListener('click', (e) => { if (e.target === settingsEl) toggleSettings(false); });
+document.querySelectorAll<HTMLButtonElement>('.setting-row').forEach((row) => {
+  row.addEventListener('click', () => {
+    const kind = row.dataset.setting;
+    sfx.click();
+    if (kind === 'sound') {
+      soundOn = !soundOn;
+      savePref(PREF_SOUND, soundOn ? '1' : '0');
+      if (soundOn) sfx.click();
+    } else if (kind === 'vibrate') {
+      vibrateOn = !vibrateOn;
+      savePref(PREF_VIBRATE, vibrateOn ? '1' : '0');
+      buzz(20);
+    } else if (kind === 'scan') {
+      const on = loadPref(PREF_SCAN, '1') !== '1';
+      savePref(PREF_SCAN, on ? '1' : '0');
+      applyScan();
+    }
+    refreshSettings();
+  });
+});
+applyScan();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && engine.snake_state(game) === 1) togglePause();
 });
