@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.astro/
+engine/target/
+engine/out/
+*.log
+.DS_Store

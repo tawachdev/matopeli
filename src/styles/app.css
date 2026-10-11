@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* shadcn-style tokens, tuned for the 3310 tribute */
+:root {
+  --background: 222 20% 9%;
+  --foreground: 220 15% 92%;
+  --muted: 220 10% 62%;
+  --accent: 42 100% 51%;
+  --radius: 0.75rem;
+}
+
+body {
+  background: radial-gradient(900px 500px at 50% -5%, #2b3038, #14161a);
+}
+
+/* shadcn-like button variants (no React runtime needed) */
+@layer components {
+  .btn-key {
+    @apply inline-flex items-center justify-center rounded-[20px] px-4 py-[7px] text-sm font-bold tracking-wide transition active:translate-y-[2px];
+    color: #23304d;
+    background: linear-gradient(#d4d9e2, #a9b1c0);
+    box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4);
+  }
+  .btn-key:active { box-shadow: 0 1px 0 #6d7482; }
+  .level-btn {
+    width: 30px; height: 30px; border-radius: 6px;
+    border: 2px solid #232a12; background: transparent; color: #232a12;
+    font-weight: bold; cursor: pointer; font-family: "Courier New", monospace;
+  }
+}
+
+/* shapes Tailwind can't express: 3310 curves, LCD glass, keypad */
+.phone-body {
+  border-radius: 60px 60px 70px 70px / 40px 40px 80px 80px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 2px 2px rgba(255, 255, 255, 0.25),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.35);
+}
+.navi-ring { box-shadow: 0 3px 0 #6d7482, 0 4px 6px rgba(0, 0, 0, 0.4); }
+.navi-ring:active { transform: translateY(2px); box-shadow: 0 1px 0 #6d7482; }
+.scanlines {
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, 0.1) 2px 3px);
+}
+canvas { image-rendering: pixelated; }
+.level-btn.picked { background: #232a12; color: #9aa763; }
+.dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
+.dots i.on { background: #febb02; }
+.banner { display: flex; }
+.banner.hidden { display: none; }
