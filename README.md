@@ -24,8 +24,10 @@ WASM module — no CDN, no fonts, no images, no backend.
 | <kbd>C</kbd> / <kbd>Space</kbd> / <kbd>Esc</kbd> | Pause / resume |
 | Arrows / WASD / swipe | Also steer |
 
-Eat **5** foods to clear each of the **9 mazes**. The bonus bug pays
-**20 + time left** but vanishes fast. Walls and your own tail kill.
+Eat **5** foods to clear each maze. Mazes cycle through **9** layouts
+while levels keep rising endlessly and speed climbs to a brutal floor —
+the next level starts by itself after a short breather. The bonus bug
+pays **20 + time left** but vanishes fast. Walls and your own tail kill.
 Fill the whole board and you clear it outright. Best score stays in
 the browser. Tapping the screen follows the same rules as the keys —
 pause screen resumes, level screen continues, never restarts by accident.
@@ -70,7 +72,7 @@ score kept, and only resets after game over or a cleared board.
 ## Tests
 
 ```sh
-cargo test --manifest-path engine/Cargo.toml   # 13 Rust unit tests
+cargo test --manifest-path engine/Cargo.toml   # 14 Rust unit tests
 npx tsc --noEmit                               # types
 npx astro check                                # Astro + template checks
 npm run build                                  # production build

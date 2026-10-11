@@ -74,7 +74,7 @@ body {
   background-size: 4px 4px;
 }
 .screen-arc {
-  border-radius: 70px 70px 18px 18px / 44px 44px 18px 18px;
+  border-radius: 26px 26px 16px 16px / 22px 22px 16px 16px;
   background: linear-gradient(#dde1e9, #b7bdc9);
 }
 #navi span {

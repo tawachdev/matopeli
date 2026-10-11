@@ -76,7 +76,7 @@ const engine: SnakeExports = maybeEngine;
 const GOAL = engine.snake_goal(), MAX_LEVEL = engine.snake_max_level();
 const CELL_PX = canvas.width / engine.snake_cols();
 const BOARD_Y = 30;
-const INK = '#26300f', PAPER = '#b3c948', DIM = '#6d7a33';
+const INK = '#26300f', PAPER = '#b3c948';
 const MAX_FRAME_MS = 250;
 const FOOD_BLINK_MS = 250;
 const BONUS_BLINK_MS = 120;
@@ -97,6 +97,8 @@ let popup: { text: string; until: number } | null = null;
 let endBannerAt: number | null = null;
 let endWon = false;
 let levelBannerAt: number | null = null;
+let autoContinueAt: number | null = null;
+const AUTO_CONTINUE_MS = 1500;
 let flashUntil = 0;
 let shownScore = 0;
 const scoreEl = $('score');
@@ -159,6 +161,7 @@ function startGame() {
   hideBanner();
 }
 function continueLevel() {
+  autoContinueAt = null;
   engine.snake_start(game);
   acc = 0; last = performance.now();
   hideBanner();
@@ -227,7 +230,12 @@ function frame(now: number) {
   }
   if (levelBannerAt !== null && now >= levelBannerAt) {
     levelBannerAt = null;
-    showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false, 'level');
+    showBanner(`Level ${engine.snake_level(game)}`, 'Get ready', false, 'level');
+    autoContinueAt = now + AUTO_CONTINUE_MS;
+  }
+  if (autoContinueAt !== null && now >= autoContinueAt) {
+    autoContinueAt = null;
+    if (engine.snake_state(game) === 0) continueLevel();
   }
   render(now);
   requestAnimationFrame(frame);
@@ -338,7 +346,7 @@ function render(now: number) {
     scoreEl.classList.add('pop');
   }
   scoreEl.textContent = String(score);
-  levelEl.textContent = `Level ${engine.snake_level(game)}/${MAX_LEVEL}`;
+  levelEl.textContent = `Level ${engine.snake_level(game)}`;
   if (popup) {
     if (now > popup.until) popup = null;
     else {
@@ -446,7 +454,7 @@ window.addEventListener('pageshow', (e) => {
   destroyed = false;
   game = engine.snake_create(BigInt(Date.now()));
   shownScore = 0; popup = null; flashUntil = 0;
-  endBannerAt = null; endWon = false; levelBannerAt = null;
+  endBannerAt = null; endWon = false; levelBannerAt = null; autoContinueAt = null;
   startScreen = true;
   showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
 });
