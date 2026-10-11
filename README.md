@@ -19,18 +19,22 @@ WASM module — no CDN, no fonts, no images, no backend.
 | Keys | Does what |
 |---|---|
 | <kbd>2</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd> | Steer — like the real Nokia |
-| <kbd>1</kbd>–<kbd>9</kbd> | Pick start level (start screen only) |
+| <kbd>1</kbd>–<kbd>9</kbd> | Pick start level (or type any level) |
 | <kbd>Start</kbd> / Navi / <kbd>Enter</kbd> | Start · resume pause · continue level · restart |
 | <kbd>C</kbd> / <kbd>Space</kbd> / <kbd>Esc</kbd> | Pause / resume |
 | Arrows / WASD / swipe | Also steer |
 
 Eat **5** foods to clear each maze. Mazes cycle through **9** layouts
 while levels keep rising endlessly and speed climbs to a brutal floor —
-the next level starts by itself after a short breather. The bonus bug
-pays **20 + time left** but vanishes fast. Walls and your own tail kill.
-Fill the whole board and you clear it outright. Best score stays in
-the browser. Tapping the screen follows the same rules as the keys —
-pause screen resumes, level screen continues, never restarts by accident.
+the next level starts by itself after a short breather. The edges are
+portals: the snake wraps around instead of dying (only maze walls and
+your own tail kill). The bonus bug spans **2×2** cells and pays
+**20 + time left** but vanishes fast, and a digestion bump ripples down
+the body after every bite. Fill the whole board and you clear it
+outright. The top **3** scores stay in the browser and the start screen
+lets you type any level. Tapping the screen follows the same rules as
+the keys — pause screen resumes, level screen continues, never
+restarts by accident.
 
 ## Run it
 
@@ -72,11 +76,11 @@ score kept, and only resets after game over or a cleared board.
 ## Tests
 
 ```sh
-cargo test --manifest-path engine/Cargo.toml   # 14 Rust unit tests
+cargo test --manifest-path engine/Cargo.toml   # 19 Rust unit tests
 npx tsc --noEmit                               # types
 npx astro check                                # Astro + template checks
 npm run build                                  # production build
-BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, console)
+BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, high score, console)
 BASE=http://localhost:4322 npm run test:state  # dev state machine (eat, pause, level-up, touch)
 BASE=http://localhost:8901 npm run test:offline # offline reload + play
 ```

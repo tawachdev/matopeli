@@ -37,15 +37,20 @@ check('resume hides banner', await page.$eval('#banner', (el) => el.classList.co
 check('resume keeps score', (await page.textContent('#score')) === scoreBefore);
 check('resume keeps level', (await page.textContent('#level')) === levelBefore);
 
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(500);
+await page.click('#levels button:nth-child(6)');
+await page.click('#softL');
 await page.waitForFunction(
   () => document.getElementById('bannerTitle').textContent === 'Game over',
   { timeout: 30000 }
 );
+check('border wall kills on level 6', true);
 await page.keyboard.press('Enter');
 await page.waitForTimeout(400);
 check('restart hides banner', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
 check('restart resets score to 0', (await page.textContent('#score')) === '0');
-check('restart keeps picked level 1', (await page.textContent('#level')) === 'Level 1');
+check('restart keeps picked level 6', (await page.textContent('#level')) === 'Level 6');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
@@ -53,6 +58,19 @@ await page.click('#levels button:last-child');
 await page.click('#softL');
 await page.waitForTimeout(300);
 check('picker starts level 9', (await page.textContent('#level')) === 'Level 9');
+
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(500);
+await page.fill('#levelInput', '20');
+await page.click('#softL');
+await page.waitForTimeout(300);
+check('typed level input starts level 20', (await page.textContent('#level')) === 'Level 20');
+
+await page.evaluate(() => localStorage.setItem('snake2_scores', JSON.stringify([500, 300, 120])));
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(500);
+const hallText = await page.$eval('#hall', (el) => el.textContent || '');
+check('high score table renders top scores', hallText.includes('500') && hallText.includes('300') && hallText.includes('120'));
 
 check('console clean', problems.length === 0);
 for (const p of problems) console.log('  ! ' + p);

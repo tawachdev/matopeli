@@ -62,6 +62,31 @@ body {
   color: #9aa763;
 }
 .level-btn.picked { background: #232a12; color: #9aa763; }
+.level-input {
+  width: 116px;
+  padding: 3px 6px;
+  border: 2px solid #232a12;
+  border-radius: 6px;
+  background: transparent;
+  color: #232a12;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.level-input::-webkit-outer-spin-button,
+.level-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.level-input::placeholder { color: #6d7a33; }
+.hall {
+  justify-content: center;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.1;
+  color: #4a5527;
+  list-style: none;
+}
+.hall li { white-space: nowrap; }
 .dots i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
 .dots i.on { background: #febb02; }
 

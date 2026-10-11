@@ -28,8 +28,10 @@ import '../styles/app.css';
         <div class="scanlines pointer-events-none absolute inset-0"></div>
         <div class="banner absolute inset-0 flex-col items-center justify-center gap-2 bg-lcd-bg/90 p-2.5 text-center font-lcd text-lcd-ink" id="banner">
           <b id="bannerTitle" class="text-[22px] tracking-[2px]">Snake II</b>
-          <span id="bannerSub" class="text-xs">Key 1-9 picks a level, then Start</span>
+          <span id="bannerSub" class="text-xs">Pick a level, then Start</span>
           <div class="levels flex flex-wrap justify-center gap-1.5" id="levels"></div>
+          <input id="levelInput" type="number" min="1" max="99" inputmode="numeric" placeholder="or type level" class="level-input" />
+          <ol id="hall" class="hall"></ol>
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ interface SnakeExports {
   snake_score(p: number): number;
   snake_level(p: number): number;
   snake_progress(p: number): number;
+  snake_bump(p: number): number;
   snake_cause(p: number): number;
   snake_len(p: number): number;
   snake_cell_x(p: number, i: number): number;
@@ -64,6 +65,39 @@ function saveBest(value: number) {
   } catch {}
 }
 
+const SCORES_KEY = 'snake2_scores';
+const TOP_N = 3;
+function loadScores(): number[] {
+  try {
+    const raw = localStorage.getItem(SCORES_KEY);
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0)
+      .map((n) => Math.floor(n))
+      .sort((a, b) => b - a)
+      .slice(0, TOP_N);
+  } catch {
+    return [];
+  }
+}
+function saveScores(scores: number[]) {
+  try {
+    localStorage.setItem(SCORES_KEY, JSON.stringify(scores.slice(0, TOP_N)));
+  } catch {}
+}
+function recordScore(score: number): number {
+  if (score <= 0) return 0;
+  const scores = loadScores();
+  scores.push(score);
+  scores.sort((a, b) => b - a);
+  const trimmed = scores.slice(0, TOP_N);
+  saveScores(trimmed);
+  const at = trimmed.indexOf(score);
+  return at >= 0 ? at + 1 : 0;
+}
+
 const maybeEngine = await loadEngine();
 if (!maybeEngine) {
   bannerTitle.textContent = 'No engine';
@@ -76,6 +110,7 @@ const GOAL = engine.snake_goal(), MAX_LEVEL = engine.snake_max_level();
 const CELL_PX = canvas.width / engine.snake_cols();
 const BOARD_Y = 30;
 const INK = '#26300f', PAPER = '#b3c948';
+const BONUS_CELLS = 2;
 const MAX_FRAME_MS = 250;
 const FOOD_BLINK_MS = 250;
 const BONUS_BLINK_MS = 120;
@@ -104,6 +139,9 @@ let lastEatAt = 0;
 const scoreEl = $('score');
 const levelEl = $('level');
 const dotsEl = $('dots');
+const levelInput = $('levelInput') as HTMLInputElement;
+const hallEl = $('hall');
+let lastRank = 0;
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
@@ -121,8 +159,15 @@ function beep(freq: number, ms: number, type: OscillatorType = 'square', vol = 0
 const sfx = {
   eat:   () => beep(1250, 55),
   bonus: () => { beep(1174, 70); setTimeout(() => beep(1568, 90), 70); },
-  die:   () => { beep(392, 120, 'sawtooth'); setTimeout(() => beep(185, 240, 'sawtooth'), 110); },
-  level: () => { [523, 659, 784, 1046].forEach((freq, order) => setTimeout(() => beep(freq, 90), order * 90)); },
+  die:   () => {
+    [392, 330, 262, 175].forEach((freq, order) => setTimeout(() => beep(freq, 160, 'sawtooth', 0.05), order * 120));
+  },
+  level: () => {
+    [523, 659, 784, 1046, 784, 1046, 1318].forEach((freq, order) => setTimeout(() => beep(freq, 85), order * 85));
+  },
+  win:   () => {
+    [784, 988, 1174, 1568].forEach((freq, order) => setTimeout(() => beep(freq, 110), order * 100));
+  },
   turn:  () => beep(440, 30, 'square', 0.015),
   click: () => beep(2100, 18, 'square', 0.02),
 };
@@ -134,18 +179,48 @@ for (let level = 1; level <= MAX_LEVEL; level++) {
   levelButton.className = 'level-btn' + (level === 1 ? ' picked' : '');
   levelButton.onclick = () => {
     startLevel = level;
+    levelInput.value = '';
     [...levelPicker.children].forEach((child) => child.classList.remove('picked'));
     levelButton.classList.add('picked');
   };
   levelPicker.appendChild(levelButton);
 }
+levelInput.addEventListener('input', () => {
+  const parsed = parseInt(levelInput.value, 10);
+  if (Number.isFinite(parsed) && parsed >= 1) {
+    startLevel = Math.min(parsed, 99);
+    [...levelPicker.children].forEach((child) => child.classList.remove('picked'));
+  }
+});
+levelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); startGame(); }
+});
 
 type BannerKind = 'start' | 'pause' | 'level' | 'over';
 let bannerKind: BannerKind = 'start';
 
+function renderHall() {
+  const scores = loadScores();
+  hallEl.innerHTML = '';
+  if (scores.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No scores yet';
+    hallEl.appendChild(li);
+    return;
+  }
+  scores.forEach((value, index) => {
+    const li = document.createElement('li');
+    li.textContent = `${index + 1}. ${value}`;
+    hallEl.appendChild(li);
+  });
+}
+
 function showBanner(title: string, sub: string, showLevels: boolean, kind: BannerKind) {
   bannerTitle.textContent = title; bannerSub.textContent = sub;
   levelPicker.style.display = showLevels ? 'flex' : 'none';
+  levelInput.style.display = showLevels ? 'block' : 'none';
+  hallEl.style.display = kind === 'start' ? 'flex' : 'none';
+  if (kind === 'start') renderHall();
   bannerKind = kind;
   banner.classList.remove('hidden');
 }
@@ -153,10 +228,12 @@ function hideBanner() { banner.classList.add('hidden'); }
 
 function startGame() {
   if (endBannerAt !== null || levelBannerAt !== null) return;
+  startLevel = Math.max(1, Math.min(startLevel, 99));
   engine.snake_reset(game, startLevel);
   engine.snake_start(game);
   acc = 0; last = performance.now();
   shownScore = 0; popup = null; flashUntil = 0;
+  lastRank = 0;
   startScreen = false;
   hideBanner();
 }
@@ -181,6 +258,7 @@ function onDeath(now: number) {
   const score = engine.snake_score(game);
   if (score > best) { best = score; saveBest(best); }
   $('best').textContent = String(best);
+  lastRank = recordScore(score);
   sfx.die();
   buzz(VIBRATE_MS);
   endBannerAt = now + DEATH_PAUSE_MS;
@@ -190,7 +268,8 @@ function onWon(now: number) {
   const score = engine.snake_score(game);
   if (score > best) { best = score; saveBest(best); }
   $('best').textContent = String(best);
-  sfx.bonus();
+  lastRank = recordScore(score);
+  sfx.win();
   buzz(VIBRATE_MS);
   endBannerAt = now + DEATH_PAUSE_MS;
   endWon = true;
@@ -198,11 +277,13 @@ function onWon(now: number) {
 function showDeathBanner() {
   const score = engine.snake_score(game);
   const cause = engine.snake_cause(game) === 1 ? 'Hit the wall' : 'Bit yourself';
-  showBanner('Game over', `${cause} · Score ${score} · Best ${best} — Enter to retry`, false, 'over');
+  const rank = lastRank > 0 ? ` · New #${lastRank}` : '';
+  showBanner('Game over', `${cause} · Score ${score}${rank} — Enter to retry`, false, 'over');
 }
 function showWonBanner() {
   const score = engine.snake_score(game);
-  showBanner('Board cleared!', `Score ${score} · Best ${best} — Enter to play again`, false, 'over');
+  const rank = lastRank > 0 ? ` · New #${lastRank}` : '';
+  showBanner('Board cleared!', `Score ${score}${rank} — Enter to play again`, false, 'over');
 }
 function onLevelUp(now: number) {
   sfx.level();
@@ -317,36 +398,39 @@ function drawBonus(now: number) {
   if (bx < 0) return;
   const by = engine.snake_bonus_y(game), ttl = engine.snake_bonus_ttl(game);
   if (ttl <= BONUS_WARN_TTL && Math.floor(now / BONUS_BLINK_MS) % 2 !== 0) return;
-  drawGlyph(BUG, bx * CELL_PX, by * CELL_PX + BOARD_Y - 1, 2, INK);
+  drawGlyph(BUG, bx * CELL_PX, by * CELL_PX + BOARD_Y, (CELL_PX * BONUS_CELLS) / 5, INK);
 }
-function drawLink(x: number, y: number, toPrev: [number, number], toNext: [number, number], isTail: boolean) {
+function drawLink(x: number, y: number, toPrev: [number, number], toNext: [number, number], isTail: boolean, puffed: boolean) {
   const cx = x * CELL_PX, cy = y * CELL_PX + BOARD_Y;
   ctx.fillStyle = INK;
-  const inset = isTail ? 2 : 1;
+  const inset = puffed ? 0 : isTail ? 2 : 1;
   ctx.fillRect(cx + inset, cy + inset, CELL_PX - inset * 2, CELL_PX - inset * 2);
-  const arm = (dx: number, dy: number) => {
+  const arm = (raw: [number, number]) => {
+    const dx = wrapDelta(raw[0]), dy = wrapDelta(raw[1]);
     if (dx === 1) ctx.fillRect(cx + 5, cy + 3, 5, 4);
     else if (dx === -1) ctx.fillRect(cx, cy + 3, 5, 4);
     else if (dy === 1) ctx.fillRect(cx + 3, cy + 5, 4, 5);
     else if (dy === -1) ctx.fillRect(cx + 3, cy, 4, 5);
   };
-  arm(toPrev[0], toPrev[1]);
-  if (!isTail) arm(toNext[0], toNext[1]);
+  arm(toPrev);
+  if (!isTail) arm(toNext);
 }
+const wrapDelta = (d: number): number => (d > 1 ? -1 : d < -1 ? 1 : d);
 function drawSnake(now: number) {
   if (endBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
+  const bump = engine.snake_bump(game);
   const cell = (i: number): [number, number] => [engine.snake_cell_x(game, i), engine.snake_cell_y(game, i)];
   for (let i = length - 1; i >= 1; i--) {
     const [x, y] = cell(i);
     const [px, py] = cell(i - 1);
     const [nx, ny] = i + 1 < length ? cell(i + 1) : [x * 2 - px, y * 2 - py];
-    drawLink(x, y, [px - x, py - y], [nx - x, ny - y], i === length - 1);
+    drawLink(x, y, [px - x, py - y], [nx - x, ny - y], i === length - 1, i === bump);
   }
   if (length === 0) return;
   const [hx, hy] = cell(0);
   const [nx, ny] = length > 1 ? cell(1) : [hx - 1, hy];
-  const dx = hx - nx, dy = hy - ny;
+  const dx = wrapDelta(hx - nx), dy = wrapDelta(hy - ny);
   const chomping = engine.snake_food_x(game) === hx + dx && engine.snake_food_y(game) === hy + dy;
   const bx = hx * CELL_PX, by = hy * CELL_PX + BOARD_Y;
   const gulp = now - lastEatAt < 150 ? 1 : 0;
@@ -414,6 +498,7 @@ function digitKey(digit: number) {
   sfx.click();
   if (startScreen && digit >= 1 && digit <= 9) {
     startLevel = digit;
+    levelInput.value = '';
     [...levelPicker.children].forEach((child, i) => child.classList.toggle('picked', i === digit - 1));
   }
 }
@@ -451,6 +536,8 @@ document.querySelectorAll<HTMLButtonElement>('#keypad button').forEach((key) => 
 
 const KEYMAP: Record<string, number> = { ArrowUp: 0, w: 0, W: 0, ArrowRight: 1, d: 1, D: 1, ArrowDown: 2, s: 2, S: 2, ArrowLeft: 3, a: 3, A: 3 };
 window.addEventListener('keydown', (e) => {
+  const target = e.target as HTMLElement | null;
+  if (target && target.id === 'levelInput') return;
   if (e.key in KEYMAP) { e.preventDefault(); engine.snake_set_dir(game, KEYMAP[e.key]); sfx.turn(); }
   else if (e.key >= '0' && e.key <= '9') pressDigit(+e.key);
   else if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); clearKey(); }
@@ -488,10 +575,10 @@ window.addEventListener('pageshow', (e) => {
   shownScore = 0; popup = null; flashUntil = 0;
   endBannerAt = null; endWon = false; levelBannerAt = null; autoContinueAt = null;
   startScreen = true;
-  showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
+  showBanner('Snake II', 'Pick a level, then Start', true, 'start');
 });
 
-showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
+showBanner('Snake II', 'Pick a level, then Start', true, 'start');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 interface MatopeliDebug {

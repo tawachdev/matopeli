@@ -7,6 +7,7 @@ const FOOD_SCORE: i32 = 10;
 const BONUS_BASE_SCORE: i32 = 20;
 const BONUS_LIFETIME_TICKS: i32 = 45;
 const BONUS_SPAWN_CHANCE_PCT: i32 = 30;
+const BONUS_SIZE: i32 = 2;
 const BASE_SPEED_MS: i32 = 160;
 const SPEED_STEP_MS: i32 = 12;
 const MIN_SPEED_MS: i32 = 55;
@@ -49,6 +50,7 @@ pub struct Game {
     score: i32,
     level: i32,
     progress: i32,
+    bump: i32,
     state: State,
     cause: Option<DeathCause>,
     rng: u64,
@@ -150,6 +152,7 @@ impl Game {
             score: 0,
             level: 1,
             progress: 0,
+            bump: -1,
             state: State::Ready,
             cause: None,
             rng: if seed == 0 { 0x9E3779B97F4A7C15 } else { seed },
@@ -169,6 +172,48 @@ impl Game {
     fn occupied(&self, x: i32, y: i32) -> bool {
         self.snake.iter().any(|&(sx, sy)| sx == x && sy == y)
             || self.walls.iter().any(|&(wx, wy)| wx == x && wy == y)
+            || self.in_bonus(x, y)
+    }
+
+    fn in_bonus(&self, x: i32, y: i32) -> bool {
+        match self.bonus {
+            Some(b) => (x - b.x).abs() < BONUS_SIZE && (y - b.y).abs() < BONUS_SIZE,
+            None => false,
+        }
+    }
+
+    fn fits_bonus(&self, x: i32, y: i32) -> bool {
+        if x < 0 || y < 0 || x + BONUS_SIZE > COLS || y + BONUS_SIZE > ROWS {
+            return false;
+        }
+        for dy in 0..BONUS_SIZE {
+            for dx in 0..BONUS_SIZE {
+                let cell = (x + dx, y + dy);
+                if cell == self.food || self.occupied(cell.0, cell.1) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn try_free_bonus(&mut self) -> Option<Cell> {
+        let mut attempts = 0;
+        while attempts < MAX_SPAWN_ATTEMPTS {
+            let cell = (self.rand(COLS - 1), self.rand(ROWS - 1));
+            if self.fits_bonus(cell.0, cell.1) {
+                return Some(cell);
+            }
+            attempts += 1;
+        }
+        for y in 0..ROWS - 1 {
+            for x in 0..COLS - 1 {
+                if self.fits_bonus(x, y) {
+                    return Some((x, y));
+                }
+            }
+        }
+        None
     }
 
     fn first_free_cell(&self, avoid: Cell) -> Option<Cell> {
@@ -219,6 +264,7 @@ impl Game {
         self.qlen = 0;
         self.progress = 0;
         self.bonus = None;
+        self.bump = -1;
         self.cause = None;
         self.state = State::Ready;
         self.food = (0, 0);
@@ -249,6 +295,12 @@ impl Game {
             return 0;
         }
         self.state = State::Running;
+        if self.bump >= 0 {
+            self.bump += 1;
+            if self.bump as usize >= self.snake.len() {
+                self.bump = -1;
+            }
+        }
         if self.qlen > 0 {
             let d = self.queued[0];
             self.queued[0] = self.queued[1];
@@ -258,11 +310,9 @@ impl Game {
             }
         }
         let head = self.head();
-        let nx = head.0 + self.dir.0;
-        let ny = head.1 + self.dir.1;
-        if nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS
-            || self.walls.contains(&(nx, ny))
-        {
+        let nx = (head.0 + self.dir.0).rem_euclid(COLS);
+        let ny = (head.1 + self.dir.1).rem_euclid(ROWS);
+        if self.walls.contains(&(nx, ny)) {
             self.state = State::Over;
             self.cause = Some(DeathCause::Wall);
             return 3;
@@ -283,6 +333,7 @@ impl Game {
         if grew_eat {
             self.score += FOOD_SCORE;
             self.progress += 1;
+            self.bump = 0;
             ev = 1;
             if self.progress >= FOODS_PER_LEVEL {
                 self.level += 1;
@@ -298,7 +349,7 @@ impl Game {
                 }
             }
             if self.bonus.is_none() && self.rand(100) < BONUS_SPAWN_CHANCE_PCT {
-                if let Some(cell) = self.try_free_cell(self.food) {
+                if let Some(cell) = self.try_free_bonus() {
                     self.bonus = Some(Bonus {
                         x: cell.0,
                         y: cell.1,
@@ -310,7 +361,8 @@ impl Game {
             self.snake.pop();
         }
         if let Some(b) = self.bonus {
-            if (nx, ny) == (b.x, b.y) {
+            let ate = (nx - b.x).abs() < BONUS_SIZE && (ny - b.y).abs() < BONUS_SIZE;
+            if ate {
                 self.score += BONUS_BASE_SCORE + b.ttl;
                 self.bonus = None;
                 ev = 2;
@@ -411,6 +463,7 @@ macro_rules! get {
 get!(snake_score, score);
 get!(snake_level, level);
 get!(snake_progress, progress);
+get!(snake_bump, bump);
 
 #[no_mangle]
 pub unsafe extern "C" fn snake_cause(p: *mut Game) -> i32 {
@@ -611,6 +664,94 @@ mod tests {
     }
 
     #[test]
+    fn edges_wrap_instead_of_killing() {
+        let mut g = Game::new(1);
+        g.reset(1);
+        g.state = State::Running;
+        g.dir = (-1, 0);
+        g.snake = vec![(0, 5), (1, 5), (2, 5)];
+        g.food = (10, 10);
+        assert_eq!(g.tick(), 0);
+        assert_eq!(g.head(), (COLS - 1, 5));
+        assert_eq!(g.state, State::Running);
+        g.dir = (0, -1);
+        g.snake = vec![(27, 0), (27, 1), (27, 2)];
+        assert_eq!(g.tick(), 0);
+        assert_eq!(g.head(), (27, ROWS - 1));
+        assert_eq!(g.state, State::Running);
+    }
+
+    #[test]
+    fn border_wall_still_kills_after_wrap() {
+        let mut g = Game::new(1);
+        g.reset(6);
+        g.state = State::Running;
+        g.snake = vec![(1, 5), (2, 5), (3, 5)];
+        g.dir = (-1, 0);
+        assert_eq!(g.tick(), 3);
+        assert_eq!(g.cause, Some(DeathCause::Wall));
+    }
+
+    #[test]
+    fn bump_travels_head_to_tail() {
+        let mut g = Game::new(1);
+        g.state = State::Running;
+        let head = g.head();
+        g.food = (head.0 + 1, head.1);
+        assert_eq!(g.tick(), 1);
+        assert_eq!(g.bump, 0);
+        g.food = (20, 1);
+        g.tick();
+        assert_eq!(g.bump, 1);
+        g.tick();
+        assert_eq!(g.bump, 2);
+        g.tick();
+        assert_eq!(g.bump, 3);
+        g.tick();
+        assert_eq!(g.bump, -1);
+    }
+
+    #[test]
+    fn bonus_bug_spans_two_cells() {
+        let mut g = Game::new(1);
+        g.reset(1);
+        g.state = State::Running;
+        g.snake = vec![(5, 5), (6, 5), (7, 5)];
+        g.dir = (0, 1);
+        g.bonus = Some(Bonus { x: 5, y: 6, ttl: 30 });
+        g.food = (20, 12);
+        let before = g.score;
+        assert_eq!(g.tick(), 2);
+        assert_eq!(g.head(), (5, 6));
+        assert!(g.score > before);
+        assert!(g.bonus.is_none());
+    }
+
+    #[test]
+    fn spawned_bonus_keeps_clear_of_food_and_body() {
+        for seed in 0..30u64 {
+            let mut g = Game::new(seed);
+            g.state = State::Running;
+            for _ in 0..120 {
+                let ev = g.tick();
+                if ev == 3 || ev == 4 || ev == 5 {
+                    break;
+                }
+                if let Some(b) = g.bonus {
+                    for dy in 0..BONUS_SIZE {
+                        for dx in 0..BONUS_SIZE {
+                            let cell = (b.x + dx, b.y + dy);
+                            assert!(!g.snake.contains(&cell));
+                            assert!(!g.walls.contains(&cell));
+                            assert!(cell != g.food);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn no_reverse() {
         let mut g = Game::new(1);
         g.state = State::Running;
@@ -673,7 +814,8 @@ mod tests {
                 }
                 assert!(!g.occupied(g.food.0, g.food.1));
                 if let Some(b) = g.bonus {
-                    assert!(!g.occupied(b.x, b.y));
+                    assert!(!g.snake.contains(&(b.x, b.y)));
+                    assert!(!g.walls.contains(&(b.x, b.y)));
                     assert!((b.x, b.y) != g.food);
                 }
             }
@@ -770,6 +912,7 @@ mod tests {
             assert_eq!(snake_score(ptr::null_mut()), 0);
             assert_eq!(snake_level(ptr::null_mut()), 0);
             assert_eq!(snake_progress(ptr::null_mut()), 0);
+            assert_eq!(snake_bump(ptr::null_mut()), 0);
             assert_eq!(snake_cause(ptr::null_mut()), 0);
             assert_eq!(snake_cell_x(ptr::null_mut(), 0), -1);
             assert_eq!(snake_cell_y(ptr::null_mut(), 0), -1);
