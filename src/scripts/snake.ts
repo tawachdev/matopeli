@@ -40,8 +40,36 @@ const canvas = $('lcd') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const banner = $('banner'), bannerTitle = $('bannerTitle'), bannerSub = $('bannerSub');
 
-const bytes = await (await fetch(`${import.meta.env.BASE_URL}engine.wasm`)).arrayBuffer();
-const engine = (await WebAssembly.instantiate(bytes, {})).instance.exports as unknown as SnakeExports;
+async function loadEngine(): Promise<SnakeExports | null> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}engine.wasm`);
+    if (!res.ok) return null;
+    const bytes = await res.arrayBuffer();
+    return (await WebAssembly.instantiate(bytes, {})).instance.exports as unknown as SnakeExports;
+  } catch {
+    return null;
+  }
+}
+function loadBest(): number {
+  try {
+    return +(localStorage.getItem('snake2_best') || 0);
+  } catch {
+    return 0;
+  }
+}
+function saveBest(value: number) {
+  try {
+    localStorage.setItem('snake2_best', String(value));
+  } catch {}
+}
+
+const maybeEngine = await loadEngine();
+if (!maybeEngine) {
+  bannerTitle.textContent = 'No engine';
+  bannerSub.textContent = 'engine.wasm failed to load — check connection and reload';
+  throw new Error('engine.wasm load failed');
+}
+const engine: SnakeExports = maybeEngine;
 
 const GOAL = engine.snake_goal(), MAX_LEVEL = engine.snake_max_level();
 const CELL_PX = canvas.width / engine.snake_cols();
@@ -57,8 +85,9 @@ const DEATH_PAUSE_MS = 900;
 const LEVEL_FLASH_MS = 650;
 const DEATH_BLINK_MS = 150;
 
-const game = engine.snake_create(BigInt(Date.now()));
-let best = +(localStorage.getItem('snake2_best') || 0);
+let game = engine.snake_create(BigInt(Date.now()));
+let destroyed = false;
+let best = loadBest();
 let startLevel = 1, acc = 0, last = performance.now();
 let muted = false, startScreen = true;
 let popup: { text: string; until: number } | null = null;
@@ -102,9 +131,13 @@ for (let level = 1; level <= MAX_LEVEL; level++) {
   levelPicker.appendChild(levelButton);
 }
 
-function showBanner(title: string, sub: string, showLevels: boolean) {
+type BannerKind = 'start' | 'pause' | 'level' | 'over';
+let bannerKind: BannerKind = 'start';
+
+function showBanner(title: string, sub: string, showLevels: boolean, kind: BannerKind) {
   bannerTitle.textContent = title; bannerSub.textContent = sub;
   levelPicker.style.display = showLevels ? 'flex' : 'none';
+  bannerKind = kind;
   banner.classList.remove('hidden');
 }
 function hideBanner() { banner.classList.add('hidden'); }
@@ -114,7 +147,13 @@ function startGame() {
   engine.snake_reset(game, startLevel);
   engine.snake_start(game);
   acc = 0; last = performance.now();
+  shownScore = 0; popup = null; flashUntil = 0;
   startScreen = false;
+  hideBanner();
+}
+function continueLevel() {
+  engine.snake_start(game);
+  acc = 0; last = performance.now();
   hideBanner();
 }
 function buzz(ms: number) {
@@ -124,13 +163,13 @@ function togglePause() {
   const phase = engine.snake_state(game);
   if (phase === 1 || phase === 2) {
     engine.snake_pause(game);
-    if (engine.snake_state(game) === 2) showBanner('Paused', 'Press Space or Start to resume', false);
+    if (engine.snake_state(game) === 2) showBanner('Paused', 'Press Space or Start to resume', false, 'pause');
     else hideBanner();
   }
 }
 function onDeath(now: number) {
   const score = engine.snake_score(game);
-  if (score > best) { best = score; localStorage.setItem('snake2_best', String(best)); }
+  if (score > best) { best = score; saveBest(best); }
   $('best').textContent = String(best);
   sfx.die();
   buzz(VIBRATE_MS);
@@ -139,7 +178,7 @@ function onDeath(now: number) {
 function showDeathBanner() {
   const score = engine.snake_score(game);
   const cause = engine.snake_cause(game) === 1 ? 'Hit the wall' : 'Bit yourself';
-  showBanner('Game over', `${cause} · Score ${score} · Best ${best} — Enter to retry`, false);
+  showBanner('Game over', `${cause} · Score ${score} · Best ${best} — Enter to retry`, false, 'over');
 }
 function onLevelUp(now: number) {
   sfx.level();
@@ -168,7 +207,7 @@ function frame(now: number) {
   }
   if (levelBannerAt !== null && now >= levelBannerAt) {
     levelBannerAt = null;
-    showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false);
+    showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false, 'level');
   }
   render(now);
   requestAnimationFrame(frame);
@@ -250,8 +289,10 @@ function render(now: number) {
 
 function confirmKey() {
   sfx.click();
-  if (!banner.classList.contains('hidden')) startGame();
-  else togglePause();
+  if (banner.classList.contains('hidden')) { togglePause(); return; }
+  if (bannerKind === 'pause') togglePause();
+  else if (bannerKind === 'level') continueLevel();
+  else startGame();
 }
 function clearKey() {
   sfx.click();
@@ -284,16 +325,25 @@ document.querySelectorAll<HTMLButtonElement>('#keypad button').forEach((key) => 
     else sfx.click();
   });
 });
-($('softL') as HTMLButtonElement).onclick = confirmKey;
-($('navi') as HTMLButtonElement).onclick = confirmKey;
-($('keyC') as HTMLButtonElement).onclick = clearKey;
+($('softL') as HTMLButtonElement).onclick = (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  confirmKey();
+};
+($('navi') as HTMLButtonElement).onclick = (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  confirmKey();
+};
+($('keyC') as HTMLButtonElement).onclick = (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  clearKey();
+};
 
 const KEYMAP: Record<string, number> = { ArrowUp: 0, w: 0, W: 0, ArrowRight: 1, d: 1, D: 1, ArrowDown: 2, s: 2, S: 2, ArrowLeft: 3, a: 3, A: 3 };
 window.addEventListener('keydown', (e) => {
   if (e.key in KEYMAP) { e.preventDefault(); engine.snake_set_dir(game, KEYMAP[e.key]); sfx.turn(); }
   else if (e.key >= '0' && e.key <= '9') pressDigit(+e.key);
   else if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); clearKey(); }
-  else if (e.key === 'Enter') confirmKey();
+  else if (e.key === 'Enter') { e.preventDefault(); confirmKey(); }
 });
 let swipeStart: [number, number] | null = null;
 canvas.addEventListener('touchstart', (e) => { swipeStart = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
@@ -314,7 +364,22 @@ canvas.addEventListener('click', () => { if (!banner.classList.contains('hidden'
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && engine.snake_state(game) === 1) togglePause();
 });
-window.addEventListener('pagehide', () => engine.snake_destroy(game));
+window.addEventListener('pagehide', () => {
+  if (destroyed) return;
+  destroyed = true;
+  engine.snake_destroy(game);
+});
+window.addEventListener('pageshow', (e) => {
+  const evt = e as PageTransitionEvent;
+  if (!evt.persisted || !destroyed) return;
+  destroyed = false;
+  game = engine.snake_create(BigInt(Date.now()));
+  shownScore = 0; popup = null; flashUntil = 0;
+  deathBannerAt = null; levelBannerAt = null;
+  startScreen = true;
+  showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
+});
 
-showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true);
+showBanner('Snake II', 'Key 1-9 picks a level, Start begins', true, 'start');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
 requestAnimationFrame(frame);

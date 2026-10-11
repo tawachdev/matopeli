@@ -1,0 +1,33 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo test --manifest-path engine/Cargo.toml
+      - run: cargo build --release --manifest-path engine/Cargo.toml --target wasm32-unknown-unknown
+      - name: committed wasm matches engine source
+        run: cmp engine/target/wasm32-unknown-unknown/release/engine.wasm public/engine.wasm
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx astro check
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run preview -- --port 4321 &
+      - run: sleep 3 && BASE=http://localhost:4321 node tests/e2e.mjs
+        env:
+          CI: true

@@ -569,6 +569,8 @@ mod tests {
         g.food = (head.0 + 1, head.1);
         assert_eq!(g.tick(), 4);
         assert_eq!(g.level, 2);
+        assert_eq!(g.score, FOOD_SCORE);
+        assert_eq!(g.state, State::Ready);
         assert!(g.speed_ms() < BASE_SPEED_MS);
     }
 
