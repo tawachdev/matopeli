@@ -53,12 +53,20 @@ const BONUS_WARN_TTL = 10;
 const SWIPE_MIN_PX = 18;
 const POPUP_MS = 900;
 const VIBRATE_MS = 90;
+const DEATH_PAUSE_MS = 900;
+const LEVEL_FLASH_MS = 650;
+const DEATH_BLINK_MS = 150;
 
 const game = engine.snake_create(BigInt(Date.now()));
 let best = +(localStorage.getItem('snake2_best') || 0);
 let startLevel = 1, acc = 0, last = performance.now();
 let muted = false, startScreen = true;
 let popup: { text: string; until: number } | null = null;
+let deathBannerAt: number | null = null;
+let levelBannerAt: number | null = null;
+let flashUntil = 0;
+let shownScore = 0;
+const scoreEl = $('score');
 $('best').textContent = String(best);
 
 let audioCtx: AudioContext | null = null;
@@ -102,11 +110,15 @@ function showBanner(title: string, sub: string, showLevels: boolean) {
 function hideBanner() { banner.classList.add('hidden'); }
 
 function startGame() {
+  if (deathBannerAt !== null || levelBannerAt !== null) return;
   engine.snake_reset(game, startLevel);
   engine.snake_start(game);
   acc = 0; last = performance.now();
   startScreen = false;
   hideBanner();
+}
+function buzz(ms: number) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch {}
 }
 function togglePause() {
   const phase = engine.snake_state(game);
@@ -116,18 +128,23 @@ function togglePause() {
     else hideBanner();
   }
 }
-function onDeath() {
+function onDeath(now: number) {
   const score = engine.snake_score(game);
   if (score > best) { best = score; localStorage.setItem('snake2_best', String(best)); }
   $('best').textContent = String(best);
   sfx.die();
-  try { if (navigator.vibrate) navigator.vibrate(VIBRATE_MS); } catch {}
+  buzz(VIBRATE_MS);
+  deathBannerAt = now + DEATH_PAUSE_MS;
+}
+function showDeathBanner() {
+  const score = engine.snake_score(game);
   const cause = engine.snake_cause(game) === 1 ? 'Hit the wall' : 'Bit yourself';
   showBanner('Game over', `${cause} · Score ${score} · Best ${best} — Enter to retry`, false);
 }
-function onLevelUp() {
+function onLevelUp(now: number) {
   sfx.level();
-  showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false);
+  flashUntil = now + LEVEL_FLASH_MS;
+  levelBannerAt = now + LEVEL_FLASH_MS;
 }
 
 function frame(now: number) {
@@ -139,11 +156,19 @@ function frame(now: number) {
       acc -= step;
       const before = engine.snake_score(game);
       const ev = engine.snake_tick(game);
-      if (ev === 1) sfx.eat();
+      if (ev === 1) { sfx.eat(); buzz(12); }
       else if (ev === 2) { sfx.bonus(); popup = { text: '+' + (engine.snake_score(game) - before), until: now + POPUP_MS }; }
-      else if (ev === 3) { onDeath(); break; }
-      else if (ev === 4) { onLevelUp(); break; }
+      else if (ev === 3) { onDeath(now); break; }
+      else if (ev === 4) { onLevelUp(now); break; }
     }
+  }
+  if (deathBannerAt !== null && now >= deathBannerAt) {
+    deathBannerAt = null;
+    showDeathBanner();
+  }
+  if (levelBannerAt !== null && now >= levelBannerAt) {
+    levelBannerAt = null;
+    showBanner(`Level ${engine.snake_level(game)}`, 'Speed up! Press Enter or tap Start', false);
   }
   render(now);
   requestAnimationFrame(frame);
@@ -165,7 +190,7 @@ function drawBoard(now: number) {
   }
   if (Math.floor(now / FOOD_BLINK_MS) % 2 === 0) drawCell(engine.snake_food_x(game), engine.snake_food_y(game), INK);
   drawBonus(now);
-  drawSnake();
+  drawSnake(now);
 }
 function drawBonus(now: number) {
   const bx = engine.snake_bonus_x(game);
@@ -180,7 +205,8 @@ function drawBonus(now: number) {
   ctx.fillStyle = INK;
   ctx.fillRect(cx + 4, cy + 4, CELL_PX - 8, CELL_PX - 8);
 }
-function drawSnake() {
+function drawSnake(now: number) {
+  if (deathBannerAt !== null && Math.floor(now / DEATH_BLINK_MS) % 2 === 0) return;
   const length = engine.snake_len(game);
   for (let i = length - 1; i >= 1; i--) drawCell(engine.snake_cell_x(game, i), engine.snake_cell_y(game, i), i % 2 ? DIM : INK);
   if (length === 0) return;
@@ -191,17 +217,26 @@ function drawSnake() {
   ctx.fillRect(hx * CELL_PX + 6, hy * CELL_PX + 2, 2, 2);
 }
 function render(now: number) {
+  canvas.style.filter = now < flashUntil ? 'invert(0.9)' : '';
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawBoard(now);
-  $('score').textContent = String(engine.snake_score(game));
+  const score = engine.snake_score(game);
+  if (score !== shownScore) {
+    shownScore = score;
+    scoreEl.classList.remove('pop');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('pop');
+  }
+  scoreEl.textContent = String(score);
   $('level').textContent = `Level ${engine.snake_level(game)}/${MAX_LEVEL}`;
   if (popup) {
     if (now > popup.until) popup = null;
     else {
+      const age = 1 - (popup.until - now) / POPUP_MS;
       ctx.fillStyle = INK;
       ctx.font = 'bold 13px "Courier New",monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 22);
+      ctx.fillText('BONUS ' + popup.text, canvas.width / 2, 24 - age * 10);
       ctx.textAlign = 'left';
     }
   }
