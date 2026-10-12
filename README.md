@@ -12,9 +12,9 @@ WASM module — no CDN, no fonts, no images, no backend.
 
 ![Gameplay](docs/shot-gameplay.png)
 
-| Start screen | Game over | Mobile — game first |
+| Start screen | Game over | Phone OS |
 |---|---|---|
-| ![Start](docs/shot-start.png) | ![Game over](docs/shot-gameover.png) | ![Mobile](docs/shot-mobile.png) |
+| ![Start](docs/shot-start.png) | ![Game over](docs/shot-gameover.png) | ![Phone OS](docs/shot-mobile.png) |
 
 ## How to play
 
@@ -22,8 +22,11 @@ WASM module — no CDN, no fonts, no images, no backend.
 |---|---|
 | <kbd>2</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd> | Steer — like the real Nokia |
 | <kbd>1</kbd>–<kbd>9</kbd> | Pick start level (or type any level) |
-| <kbd>Start</kbd> / Navi / <kbd>Enter</kbd> | Start · resume pause · continue level · restart |
-| <kbd>C</kbd> / <kbd>Space</kbd> / <kbd>Esc</kbd> | Pause / resume |
+| Navi / <kbd>Enter</kbd> | Start · resume pause · continue level · restart |
+| <kbd>5</kbd> | Continue from the pause or level screen |
+| <kbd>C</kbd> / <kbd>Esc</kbd> | Pause; on the pause, start or game-over screen, back to the phone |
+| <kbd>Space</kbd> | Pause / resume |
+| <kbd>#</kbd> | Phone menu (pauses a running game) |
 | Arrows / WASD / swipe | Also steer |
 
 Eat **5** foods to clear each maze. Your snake **keeps its length**
@@ -36,7 +39,7 @@ your own tail kill). The bonus bug spans **2×2** cells and pays
 **20 + time left** but vanishes fast, and a digestion bump ripples down
 the body after every bite. Fill the whole board and you clear it
 outright. The top **3** scores stay in the browser and the start screen
-lets you type any level. The gear opens a Nokia-style settings menu
+lets you type any level. Menu → Settings opens a Nokia-style settings menu
 on the LCD itself: Sound, Sound style (Classic/Soft/Retro), Vibration,
 Screen fx, and Theme — all persisted. Tapping the screen follows the same rules as
 the keys — pause screen resumes, level screen continues, never
@@ -76,20 +79,66 @@ no bindings generator, no glue library:
 | `snake_cause()` | `0` none · `1` wall · `2` self |
 
 UI flow is one explicit banner state (`start` / `pause` / `level` /
-`over`): Start resumes a pause, continues a cleared level with the
+`over`): Navi resumes a pause, continues a cleared level with the
 score kept, and only resets after game over or a cleared board.
+
+## Phone OS
+
+The phone is a full device, not just the game. The face is a classic
+3310 that fills the screen: C key, Navi key, scroll keys and the keypad,
+with a backlight that lights on every key press. Boot shows the Nokia
+splash (any key skips it), then the idle screen (live clock, signal
+status). `#` opens the menu from anywhere and pauses a running game. In
+any list, 2/8 or the scroll keys move, 5 or Navi selects and C goes
+back; screens that take typing (writing a message, the calculator,
+forms) keep the digits.
+
+The menu is the classic Nokia 3310 layout:
+
+- **Messages** — Write message / Inbox / Sent items. Real SMS between
+  phones: each browser registers a SIM (number + secret in
+  localStorage), messages go through the Cloudflare Worker backend in
+  `worker/` and arrive live over WebSocket (or queued and delivered on
+  next connect, with delivery status). A composed ringtone can be
+  attached and plays on the receiver.
+- **Call register** — Dialled / Received / Missed lists; selecting a
+  contact in Names starts a simulated call (timer) logged as dialled.
+- **Tones** — ringing tone picker (incl. the composed tone), message
+  alert tone, keypad tones, vibrating alert, and the ringtone Composer.
+- **Settings** — the LCD settings menu (sound styles, theme, effects).
+- **Games** — Snake II (the Rust engine) and Pairs II (memory game).
+- **Calculator**, **Reminders** (+ clock alarm), **Names** (contacts,
+  dial to call).
+
+### Backend (local)
+
+```sh
+cd worker
+npm install
+npx wrangler d1 execute matopeli_os --local --file schema.sql
+npm run dev          # http://127.0.0.1:8787
+npm run smoke        # end-to-end backend proof
+```
+
+Build the frontend against it with `PUBLIC_OS_API=http://127.0.0.1:8787
+npm run build`. Without the worker the phone shows NO SIGNAL and
+everything else keeps working offline.
 
 ## Tests
 
 ```sh
-cargo test --manifest-path engine/Cargo.toml   # 21 Rust unit tests
+cargo test --manifest-path engine/Cargo.toml   # 22 Rust unit tests
 npx tsc --noEmit                               # types
 npx astro check                                # Astro + template checks
 npm run build                                  # production build
 BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, LCD settings menu, high score, console)
 BASE=http://localhost:4322 npm run test:state  # dev state machine (eat, pause, level-up, touch)
 BASE=http://localhost:8901 npm run test:offline # offline reload + play
+BASE=http://localhost:4321 npm run test:os     # OS menu, apps, live SMS between two phones
 ```
+
+`test:os` needs the worker (`cd worker && npm run dev`) and a build with
+`PUBLIC_OS_API` pointing at it.
 
 `test:state` drives the real game in a dev browser through a
 read-only `window.__matopeli` seam that exists only in dev builds —

@@ -1,3 +1,4 @@
+import { emitPhoneEvent, onPhoneEvent, PhoneEvent } from '../os/events';
 
 
 interface SnakeExports {
@@ -261,6 +262,7 @@ function renderHall() {
   });
 }
 
+const START_HINT = 'Pick a level · Navi starts · C exit';
 function showBanner(title: string, sub: string, showLevels: boolean, kind: BannerKind) {
   bannerTitle.textContent = title; bannerSub.textContent = sub;
   levelPicker.style.display = showLevels ? 'flex' : 'none';
@@ -297,7 +299,7 @@ function togglePause() {
   const phase = engine.snake_state(game);
   if (phase === 1 || phase === 2) {
     engine.snake_pause(game);
-    if (engine.snake_state(game) === 2) showBanner('Paused', 'Press Space or Start to resume', false, 'pause');
+    if (engine.snake_state(game) === 2) showBanner('Paused', '5 continue · C exit', false, 'pause');
     else hideBanner();
   }
 }
@@ -325,12 +327,12 @@ function showDeathBanner() {
   const score = engine.snake_score(game);
   const cause = engine.snake_cause(game) === 1 ? 'Hit the wall' : 'Bit yourself';
   const rank = lastRank > 0 ? ` · New #${lastRank}` : '';
-  showBanner('Game over', `${cause} · Score ${score}${rank} — Enter to retry`, false, 'over');
+  showBanner('Game over', `${cause} · Score ${score}${rank} — Navi to retry`, false, 'over');
 }
 function showWonBanner() {
   const score = engine.snake_score(game);
   const rank = lastRank > 0 ? ` · New #${lastRank}` : '';
-  showBanner('Board cleared!', `Score ${score}${rank} — Enter to play again`, false, 'over');
+  showBanner('Board cleared!', `Score ${score}${rank} — Navi to play again`, false, 'over');
 }
 function onLevelUp(now: number) {
   sfx.level();
@@ -556,6 +558,14 @@ function clearKey() {
   const phase = engine.snake_state(game);
   if (phase === 1 || phase === 2) togglePause();
 }
+function exitToPhone() {
+  emitPhoneEvent(PhoneEvent.gameExit);
+}
+function backKey() {
+  sfx.click();
+  if (engine.snake_state(game) === 1) togglePause();
+  else exitToPhone();
+}
 function digitKey(digit: number) {
   sfx.click();
   if (startScreen && digit >= 1 && digit <= 9) {
@@ -571,7 +581,9 @@ function steerKey(digit: number) {
   } else sfx.click();
 }
 function pressDigit(digit: number) {
-  if (startScreen && digit >= 1 && digit <= 9) digitKey(digit);
+  const bannerAwaitsContinue = !banner.classList.contains('hidden') && bannerKind !== 'start';
+  if (digit === 5 && bannerAwaitsContinue) confirmKey();
+  else if (startScreen && digit >= 1 && digit <= 9) digitKey(digit);
   else steerKey(digit);
 }
 const STEER: Record<number, number> = { 2: 0, 4: 3, 6: 1, 8: 2 };
@@ -583,18 +595,20 @@ document.querySelectorAll<HTMLButtonElement>('#keypad button').forEach((key) => 
     else sfx.click();
   });
 });
-($('softL') as HTMLButtonElement).onclick = (e) => {
-  (e.currentTarget as HTMLButtonElement).blur();
-  confirmKey();
-};
+const phoneOnTop = () => !$('osRoot').classList.contains('hidden') || !$('bootScreen').classList.contains('hidden');
 ($('navi') as HTMLButtonElement).onclick = (e) => {
   (e.currentTarget as HTMLButtonElement).blur();
+  if (phoneOnTop()) return;
   confirmKey();
 };
 ($('keyC') as HTMLButtonElement).onclick = (e) => {
   (e.currentTarget as HTMLButtonElement).blur();
-  clearKey();
+  if (phoneOnTop()) return;
+  backKey();
 };
+onPhoneEvent(PhoneEvent.menuOpened, () => {
+  if (engine.snake_state(game) === 1) togglePause();
+});
 
 const KEYMAP: Record<string, number> = { ArrowUp: 0, w: 0, W: 0, ArrowRight: 1, d: 1, D: 1, ArrowDown: 2, s: 2, S: 2, ArrowLeft: 3, a: 3, A: 3 };
 window.addEventListener('keydown', (e) => {
@@ -603,7 +617,8 @@ window.addEventListener('keydown', (e) => {
   if (!settingsEl.classList.contains('hidden')) { menuKey(e); return; }
   if (e.key in KEYMAP) { e.preventDefault(); engine.snake_set_dir(game, KEYMAP[e.key]); sfx.turn(); }
   else if (e.key >= '0' && e.key <= '9') pressDigit(+e.key);
-  else if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); clearKey(); }
+  else if (e.key === ' ') { e.preventDefault(); clearKey(); }
+  else if (e.key === 'Escape') { e.preventDefault(); backKey(); }
   else if (e.key === 'Enter') { e.preventDefault(); confirmKey(); }
 });
 let swipeStart: [number, number] | null = null;
@@ -625,8 +640,11 @@ banner.addEventListener('click', (e) => {
 function applyScan() {
   if (scanEl) scanEl.style.display = loadPref(PREF_SCAN, '1') === '1' ? '' : 'none';
 }
+const STATUS_BAR_COLOR = { dark: '#2a3a63', light: '#e2e6ec' };
 function applyTheme() {
-  document.body.classList.toggle('light', loadPref(PREF_THEME, 'dark') === 'light');
+  const light = loadPref(PREF_THEME, 'dark') === 'light';
+  document.body.classList.toggle('light', light);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? STATUS_BAR_COLOR.light : STATUS_BAR_COLOR.dark);
 }
 function playStyleJingle(style: SoundStyle) {
   [523, 784, 1046].forEach((freq, order) => setTimeout(() => beep(freq, 110, 'square', 0.045, style), order * 110));
@@ -765,11 +783,10 @@ function toggleSettings(open?: boolean) {
     renderMenu();
   }
 }
-($('btnSettings') as HTMLButtonElement).onclick = (e) => {
-  (e.currentTarget as HTMLButtonElement).blur();
+onPhoneEvent(PhoneEvent.settingsRequested, () => {
   sfx.click();
   toggleSettings(true);
-};
+});
 ($('menuBack') as HTMLButtonElement).onclick = () => { sfx.click(); menuBackAction(); };
 settingsEl.addEventListener('click', (e) => { if (e.target === settingsEl) toggleSettings(false); });
 applyScan();
@@ -791,10 +808,10 @@ window.addEventListener('pageshow', (e) => {
   shownScore = 0; popup = null; flashUntil = 0;
   endBannerAt = null; endWon = false; levelBannerAt = null; autoContinueAt = null;
   startScreen = true;
-  showBanner('Snake II', 'Pick a level, then Start', true, 'start');
+  showBanner('Snake II', START_HINT, true, 'start');
 });
 
-showBanner('Snake II', 'Pick a level, then Start', true, 'start');
+showBanner('Snake II', START_HINT, true, 'start');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 interface MatopeliDebug {

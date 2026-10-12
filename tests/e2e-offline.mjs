@@ -11,11 +11,20 @@ function check(name, cond) {
 const browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome', headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await ctx.newPage();
+
+async function enterGame(page) {
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('#');
+  await page.waitForTimeout(150);
+}
 const problems = [];
 page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()); });
 page.on('requestfailed', (r) => problems.push('reqfail: ' + r.url()));
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 20000 });
 await page.waitForFunction(
   async () => {
@@ -30,9 +39,10 @@ check('engine.wasm precached', true);
 
 await ctx.setOffline(true);
 await page.reload({ waitUntil: 'domcontentloaded' });
+await enterGame(page);
 await page.waitForTimeout(1500);
 check('page renders offline', await page.$eval('#banner', (el) => el.classList.contains('hidden') === false));
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(500);
 check('game starts offline', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
 check('level line reads offline', (await page.textContent('#level')) === 'Level 1');

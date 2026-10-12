@@ -1,0 +1,18 @@
+name = "matopeli-os"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "matopeli_os"
+database_id = "local"
+
+[durable_objects]
+bindings = [{ name = "PRESENCE", class_name = "PresenceDO" }]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PresenceDO"]
+
+[dev]
+port = 8787
