@@ -79,6 +79,36 @@ UI flow is one explicit banner state (`start` / `pause` / `level` /
 `over`): Start resumes a pause, continues a cleared level with the
 score kept, and only resets after game over or a cleared board.
 
+## Phone OS
+
+The phone is a full device, not just the game. Boot shows the Nokia splash,
+then the idle screen (live clock, signal status). `#` toggles the OS menu
+from anywhere; inside it 2/8 move, 5/navi selects, C goes back.
+
+- **Messages** — real SMS between phones: each browser registers a SIM
+  (number + secret in localStorage), messages go through the Cloudflare
+  Worker backend in `worker/` and arrive live over WebSocket (or queued
+  and delivered on next connect, with delivery status). A composed
+  ringtone can be attached and plays on the receiver.
+- **Games** — Snake II (this repo's engine).
+- **Contacts** — local address book.
+- **Extras** — Calculator, ringtone Composer, Clock/Alarm.
+- **Settings** — the LCD settings menu (sound styles, theme, effects).
+
+### Backend (local)
+
+```sh
+cd worker
+npm install
+npx wrangler d1 execute matopeli_os --local --file schema.sql
+npm run dev          # http://127.0.0.1:8787
+npm run smoke        # end-to-end backend proof
+```
+
+Build the frontend against it with `PUBLIC_OS_API=http://127.0.0.1:8787
+npm run build`. Without the worker the phone shows NO SIGNAL and
+everything else keeps working offline.
+
 ## Tests
 
 ```sh
@@ -89,7 +119,11 @@ npm run build                                  # production build
 BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, LCD settings menu, high score, console)
 BASE=http://localhost:4322 npm run test:state  # dev state machine (eat, pause, level-up, touch)
 BASE=http://localhost:8901 npm run test:offline # offline reload + play
+BASE=http://localhost:4321 npm run test:os     # OS menu, apps, live SMS between two phones
 ```
+
+`test:os` needs the worker (`cd worker && npm run dev`) and a build with
+`PUBLIC_OS_API` pointing at it.
 
 `test:state` drives the real game in a dev browser through a
 read-only `window.__matopeli` seam that exists only in dev builds —

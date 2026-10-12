@@ -10,12 +10,21 @@ function check(name, cond) {
 
 const browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+async function enterGame(page) {
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('#');
+  await page.waitForTimeout(150);
+}
 const problems = [];
 page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()); });
 page.on('requestfailed', (r) => problems.push('reqfail: ' + r.url()));
 page.on('response', (r) => { if (r.status() >= 400) problems.push(r.status() + ' ' + r.url()); });
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(800);
 
 check('start banner visible', await page.$eval('#banner', (el) => el.classList.contains('hidden') === false));
@@ -38,6 +47,7 @@ check('resume keeps score', (await page.textContent('#score')) === scoreBefore);
 check('resume keeps level', (await page.textContent('#level')) === levelBefore);
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(500);
 await page.click('#levels button:nth-child(6)');
 await page.click('#softL');
@@ -53,6 +63,7 @@ check('restart resets score to 0', (await page.textContent('#score')) === '0');
 check('restart keeps picked level 6', (await page.textContent('#level')) === 'Level 6');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(500);
 await page.click('#levels button:last-child');
 await page.click('#softL');
@@ -60,6 +71,7 @@ await page.waitForTimeout(300);
 check('picker starts level 9', (await page.textContent('#level')) === 'Level 9');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(500);
 await page.fill('#levelInput', '20');
 await page.click('#softL');
@@ -67,6 +79,7 @@ await page.waitForTimeout(300);
 check('typed level input starts level 20', (await page.textContent('#level')) === 'Level 20');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(500);
 await page.click('#btnSettings');
 await page.waitForTimeout(200);
@@ -104,6 +117,7 @@ check('settings closes', await page.$eval('#settings', (el) => el.classList.cont
 
 await page.evaluate(() => localStorage.setItem('snake2_scores', JSON.stringify([500, 300, 120])));
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForTimeout(500);
 const hallText = await page.$eval('#hall', (el) => el.textContent || '');
 check('high score table renders top scores', hallText.includes('500') && hallText.includes('300') && hallText.includes('120'));

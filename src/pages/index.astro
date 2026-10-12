@@ -39,6 +39,13 @@ import '../styles/app.css';
           <input id="levelInput" type="number" min="1" max="99" inputmode="numeric" placeholder="or type level" class="level-input" />
           <ol id="hall" class="hall"></ol>
         </div>
+        <div id="osRoot" class="hidden">
+          <div id="osScreen"></div>
+        </div>
+        <div id="bootScreen" class="hidden">
+          <b class="boot-logo">NOKIA</b>
+          <span class="boot-sub">matopeli OS</span>
+        </div>
       </div>
     </div>
     <div class="mx-0.5 my-1 flex items-center justify-between">
@@ -82,6 +89,7 @@ import '../styles/app.css';
 </div>
 <script>
   import '../scripts/snake.ts';
+  import '../os/boot-main.ts';
 </script>
 </body>
 </html>

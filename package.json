@@ -13,7 +13,8 @@
     "preview": "astro preview",
     "test:e2e": "node tests/e2e.mjs",
     "test:state": "node tests/e2e-state.mjs",
-    "test:offline": "node tests/e2e-offline.mjs"
+    "test:offline": "node tests/e2e-offline.mjs",
+    "test:os": "node tests/e2e-os.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

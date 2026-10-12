@@ -10,12 +10,21 @@ function check(name, cond) {
 
 const browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+async function enterGame(page) {
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('#');
+  await page.waitForTimeout(150);
+}
 const problems = [];
 page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()); });
 page.on('requestfailed', (r) => problems.push('reqfail: ' + r.url()));
 page.on('response', (r) => { if (r.status() >= 400) problems.push(r.status() + ' ' + r.url()); });
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await enterGame(page);
 await page.waitForFunction(() => typeof window.__matopeli === 'object', null, { timeout: 15000 });
 check('debug seam present (dev only)', true);
 

@@ -256,3 +256,50 @@ button:focus-visible { outline: 3px solid #febb02; outline-offset: 2px; }
 @media (max-height: 740px) {
   .phone-body { padding-top: 10px; }
 }
+
+#osRoot {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  font-family: "Courier New", monospace;
+  color: var(--color-lcd-ink);
+}
+#osScreen { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 8px; }
+.os-title { text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 2px; border-bottom: 2px solid var(--color-lcd-ink); padding-bottom: 4px; }
+.os-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding-top: 6px; }
+.os-list { display: flex; flex-direction: column; gap: 3px; }
+.os-row { display: flex; justify-content: space-between; gap: 6px; padding: 4px 6px; font-size: 12px; border: 1px solid transparent; white-space: nowrap; overflow: hidden; }
+.os-row.os-cur { background: var(--color-lcd-ink); color: var(--color-lcd-bg); }
+.os-val { opacity: 0.75; font-size: 11px; }
+.os-hint { font-size: 10px; letter-spacing: 0.5px; opacity: 0.8; }
+.os-soft { display: flex; align-items: center; justify-content: space-between; border-top: 2px solid var(--color-lcd-ink); padding-top: 5px; }
+.os-back { font-weight: 700; font-size: 11px; background: none; border: none; color: inherit; font-family: inherit; cursor: pointer; }
+.os-signal { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 1px; font-weight: 700; }
+.os-signal .os-off { text-decoration: blink; }
+.os-clock { text-align: center; font-size: 34px; font-weight: 700; letter-spacing: 3px; margin-top: 18px; }
+.os-date { text-align: center; font-size: 11px; }
+.os-idle-mid { flex: 1; display: flex; align-items: center; justify-content: center; }
+.os-newmsg { font-size: 12px; font-weight: 700; border: 2px solid var(--color-lcd-ink); padding: 6px 10px; }
+.os-thread { gap: 2px; }
+.os-row.os-wait { opacity: 0.7; }
+.os-row.os-tone { text-decoration: underline; }
+#bootScreen {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: #0c1208;
+  color: #b9cf54;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-family: "Courier New", monospace;
+  animation: bootIn 0.5s ease-out;
+}
+#bootScreen .boot-logo { font-size: 26px; font-weight: 700; letter-spacing: 8px; animation: bootPulse 1.2s ease-in-out infinite; }
+#bootScreen .boot-sub { font-size: 10px; letter-spacing: 2px; opacity: 0.8; }
+@keyframes bootIn { from { opacity: 0; } }
+@keyframes bootPulse { 50% { opacity: 0.4; } }
+#bootScreen.hidden { display: none; }
+#osRoot.hidden { display: none; }

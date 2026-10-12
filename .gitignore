@@ -6,3 +6,4 @@ engine/out/
 *.log
 .DS_Store
 .vercel
+.wrangler/

@@ -297,7 +297,7 @@ function togglePause() {
   const phase = engine.snake_state(game);
   if (phase === 1 || phase === 2) {
     engine.snake_pause(game);
-    if (engine.snake_state(game) === 2) showBanner('Paused', 'Press Space or Start to resume', false, 'pause');
+    if (engine.snake_state(game) === 2) showBanner('Paused', 'Space resumes - hash menu', false, 'pause');
     else hideBanner();
   }
 }
