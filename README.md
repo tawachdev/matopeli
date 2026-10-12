@@ -1,152 +1,208 @@
-# Matopeli — Snake II in Rust + WebAssembly
+# Matopeli
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/engine-Rust-orange.svg)](engine/)
-[![WebAssembly](https://img.shields.io/badge/runs-WebAssembly-blue.svg)](public/engine.wasm)
-[![No dependencies](https://img.shields.io/badge/offline-yes-green.svg)](#offline-support)
+A Nokia 3310 that runs in your browser: the phone OS, its menus and apps, Snake II on a 32 KB Rust/WebAssembly engine, and real SMS between browsers.
 
-Nokia 3310 tribute. The whole game runs on a 32&nbsp;KB dependency-free
-WASM module — no CDN, no fonts, no images, no backend.
+- **The whole phone works.** Boot, idle screen, menu, Messages, Call register, Tones, Calculator, Reminders, Names and two games, all driven by the 3310's own keys.
+- **Snake II runs on real game logic.** The rules live in a dependency-free Rust crate compiled to a 32 KB `engine.wasm`, covered by 22 unit tests.
+- **Offline first.** Installable PWA. Without the SMS backend the phone shows NO SIGNAL and everything else keeps working.
 
-**Play it:** https://matopeli-ten.vercel.app (installable PWA, works offline)
+**Play it:** https://matopeli-ten.vercel.app
 
-![Gameplay](docs/shot-gameplay.png)
+![Snake II on the 3310](docs/shot-gameplay.png)
 
-| Start screen | Game over | Phone OS |
+| Start screen | Game over | Phone menu |
 |---|---|---|
-| ![Start](docs/shot-start.png) | ![Game over](docs/shot-gameover.png) | ![Phone OS](docs/shot-mobile.png) |
+| ![Start](docs/shot-start.png) | ![Game over](docs/shot-gameover.png) | ![Phone menu](docs/shot-mobile.png) |
 
-## How to play
-
-| Keys | Does what |
-|---|---|
-| <kbd>2</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd> | Steer — like the real Nokia |
-| <kbd>1</kbd>–<kbd>9</kbd> | Pick start level (or type any level) |
-| Navi / <kbd>Enter</kbd> | Start · resume pause · continue level · restart |
-| <kbd>5</kbd> | Continue from the pause or level screen |
-| <kbd>C</kbd> / <kbd>Esc</kbd> | Pause; on the pause, start or game-over screen, back to the phone |
-| <kbd>Space</kbd> | Pause / resume |
-| <kbd>#</kbd> | Phone menu (pauses a running game) |
-| Arrows / WASD / swipe | Also steer |
-
-Eat **5** foods to clear each maze. Your snake **keeps its length**
-into the next maze — it keeps growing run after run. Mazes cycle
-through **9** layouts while levels keep rising endlessly and speed
-climbs to a brutal floor — the next level starts by itself after a
-short breather. The edges are
-portals: the snake wraps around instead of dying (only maze walls and
-your own tail kill). The bonus bug spans **2×2** cells and pays
-**20 + time left** but vanishes fast, and a digestion bump ripples down
-the body after every bite. Fill the whole board and you clear it
-outright. The top **3** scores stay in the browser and the start screen
-lets you type any level. Menu → Settings opens a Nokia-style settings menu
-on the LCD itself: Sound, Sound style (Classic/Soft/Retro), Vibration,
-Screen fx, and Theme — all persisted. Tapping the screen follows the same rules as
-the keys — pause screen resumes, level screen continues, never
-restarts by accident.
-
-## Run it
-
-Requires Node.js ≥ 22.12 and a Rust toolchain (pinned per
-`rust-toolchain.toml`).
+## Run it in 30 seconds
 
 ```sh
 npm install
-npm run dev                 # dev server with test seam (see below)
-npm run build               # production build + offline precache manifest
-npm run preview             # serve production locally
+npm run dev
 ```
 
-## How it works
+Open http://localhost:4321. The phone boots to its idle screen. Press <kbd>Enter</kbd> or tap any key to wake it, then Navi (or <kbd>Enter</kbd>) to open the menu. Games → Snake II starts the game.
+
+You do not need Rust to run it: the compiled `public/engine.wasm` is committed. Rust is only for changing the game engine (see [Change the game engine](#change-the-game-engine)).
+
+## Proof
+
+The SMS backend's own end-to-end check, run against a local worker (`cd worker && npm run smoke`):
 
 ```text
-engine/src/lib.rs  →  Rust game logic (grid, mazes, bonus, scoring)
-        │  cargo build --target wasm32-unknown-unknown (32 KB, zero deps)
-        ▼
-public/engine.wasm →  loaded by src/scripts/snake.ts (render + input + beeps)
-        │
-        ▼
-src/pages/index.astro + Tailwind 4  →  the 3310 around it (Astro 6)
+step 1 :: base http://127.0.0.1:8787
+PASS step 1 base url
+PASS step 2 register A=+212612000164 B=+212612000165
+PASS step 3 ws open for B
+PASS step 4 send A->B accepted id=f666c160-03a3-42b5-bd88-0e398e4565b0 status=delivered
+PASS step 5 B received message on ws
+PASS step 6 A outbox shows delivered
+PASS step 7a send A->C queued while offline
+PASS step 7b queued push arrived on C ws
+PASS step 7c A outbox shows delivered after push
+RESULT all steps passed
 ```
 
-TypeScript talks to the engine through plain integer exports —
-no bindings generator, no glue library:
+The browser suites drive the real phone in Chromium:
 
-| Call | Meaning |
+| Suite | Checks | What it proves |
+|---|---|---|
+| `test:e2e` | 31 | Start, pause, restart, level picker, typed level, LCD settings, high scores, clean console |
+| `test:state` | 23 | Game state machine through a dev-only seam: eating, pause, level-up, touch swipe |
+| `test:offline` | 6 | Loads online, cuts the network, reloads, starts a game |
+| `test:os` | 34 | Menu, every app, keypad navigation, game ↔ phone handoff, live SMS between two phones |
+| `cargo test` | 22 | Engine rules: walls, wrap-around, growth, bonus, levels, board cleared |
+
+## What's on the phone
+
+| Menu | What it does |
 |---|---|
-| `snake_tick()` | `0` nothing · `1` ate · `2` bonus · `3` died · `4` level up · `5` board cleared |
-| `snake_state()` | `0` ready · `1` running · `2` paused · `3` over · `4` won |
-| `snake_cause()` | `0` none · `1` wall · `2` self |
+| Messages | Write, Inbox, Sent items. Real SMS between browsers, delivered live or queued until the other phone connects. A composed ringtone can be attached and plays on the receiver. |
+| Call register | Dialled, received and missed lists. Calling a contact from Names starts a simulated call with a timer. |
+| Tones | Ringing tone, message alert, keypad tones, vibrating alert, and a ringtone Composer. |
+| Settings | Sound, sound style (Classic, Soft, Retro), vibration, screen effects, theme (navy or silver cover). Saved in the browser. |
+| Games | Snake II and Pairs II (memory). |
+| Calculator | `+ - * /` with operator precedence, typed on the keypad. |
+| Reminders | A reminder list and a clock alarm. |
+| Names | Contacts; select one to call it. |
 
-UI flow is one explicit banner state (`start` / `pause` / `level` /
-`over`): Navi resumes a pause, continues a cleared level with the
-score kept, and only resets after game over or a cleared board.
+## Controls
 
-## Phone OS
+The face has the 3310's keys: **C**, **Navi** (the wide key under the screen), two **scroll keys**, and the 12-key keypad. A keyboard works too.
 
-The phone is a full device, not just the game. The face is a classic
-3310 that fills the screen: C key, Navi key, scroll keys and the keypad,
-with a backlight that lights on every key press. Boot shows the Nokia
-splash (any key skips it), then the idle screen (live clock, signal
-status). `#` opens the menu from anywhere and pauses a running game. In
-any list, 2/8 or the scroll keys move, 5 or Navi selects and C goes
-back; screens that take typing (writing a message, the calculator,
-forms) keep the digits.
+| Key | On a phone screen | In Snake II |
+|---|---|---|
+| Navi / <kbd>Enter</kbd> | Select | Start; pause while playing; resume, continue or restart from a banner |
+| <kbd>C</kbd> / <kbd>Esc</kbd> | Back | Pause while playing; on the pause, start or game-over screen, back to the Games menu |
+| Scroll keys / <kbd>↑</kbd> <kbd>↓</kbd> | Move in a list | Steer up or down |
+| <kbd>2</kbd> <kbd>8</kbd> | Move in a list | Steer up or down |
+| <kbd>4</kbd> <kbd>6</kbd> | | Steer left or right |
+| <kbd>5</kbd> | Select | Continue or restart from the pause, level or game-over screen |
+| <kbd>1</kbd>–<kbd>9</kbd> | Type, on screens that take typing | Pick the start level |
+| <kbd>#</kbd> | Leave the phone for the Snake II screen | Open the phone menu and pause the game |
+| <kbd>Space</kbd> | | Pause or resume |
+| Swipe on the screen | | Steer |
 
-The menu is the classic Nokia 3310 layout:
+Screens that take typing (writing a message, Calculator, the Names and Reminders forms) keep the digits. Every other list uses 2, 8 and 5 to move and select. Any key press lights the backlight for 6 seconds.
 
-- **Messages** — Write message / Inbox / Sent items. Real SMS between
-  phones: each browser registers a SIM (number + secret in
-  localStorage), messages go through the Cloudflare Worker backend in
-  `worker/` and arrive live over WebSocket (or queued and delivered on
-  next connect, with delivery status). A composed ringtone can be
-  attached and plays on the receiver.
-- **Call register** — Dialled / Received / Missed lists; selecting a
-  contact in Names starts a simulated call (timer) logged as dialled.
-- **Tones** — ringing tone picker (incl. the composed tone), message
-  alert tone, keypad tones, vibrating alert, and the ringtone Composer.
-- **Settings** — the LCD settings menu (sound styles, theme, effects).
-- **Games** — Snake II (the Rust engine) and Pairs II (memory game).
-- **Calculator**, **Reminders** (+ clock alarm), **Names** (contacts,
-  dial to call).
+### Snake II rules
 
-### Backend (local)
+| Rule | Value |
+|---|---|
+| Food per maze | 5 |
+| Mazes | 9 layouts, repeating while the level keeps rising |
+| Edges | Wrap around; only maze walls and your own tail kill |
+| Length | Carried into the next maze |
+| Bonus bug | 2×2 cells, pays 20 + time left, disappears quickly |
+| Board cleared | Filling the whole board ends the run as a win |
+| High scores | Top 3, stored in the browser |
+
+## Prerequisites
+
+| Tool | Version | Needed for | Check |
+|---|---|---|---|
+| Node.js | 22.12 or newer | Everything | `node --version` |
+| Rust | 1.95.0 with target `wasm32-unknown-unknown`, pinned in `rust-toolchain.toml` | Changing the engine only | `rustc --version` |
+| Playwright Chromium | Matches the installed `playwright` package | Browser tests only | `npx playwright install chromium` |
+
+## Real SMS locally
+
+The phone talks to a Cloudflare Worker in `worker/`. D1 stores SIMs and messages; a Durable Object holds each phone's WebSocket.
+
+Start the worker:
 
 ```sh
 cd worker
 npm install
 npx wrangler d1 execute matopeli_os --local --file schema.sql
-npm run dev          # http://127.0.0.1:8787
-npm run smoke        # end-to-end backend proof
+npm run dev
 ```
 
-Build the frontend against it with `PUBLIC_OS_API=http://127.0.0.1:8787
-npm run build`. Without the worker the phone shows NO SIGNAL and
-everything else keeps working offline.
+It listens on http://127.0.0.1:8787. In a second terminal, from the repository root, build the site and serve it:
+
+```sh
+PUBLIC_OS_API=http://127.0.0.1:8787 npm run build
+npm run preview
+```
+
+Open http://localhost:4321 in two browser profiles, or a normal and a private window. Each gets its own number, shown in Messages → Inbox. Write a message from one to the other's number.
 
 ## Tests
 
+The browser suites need running servers. Start each in its own terminal:
+
+| Server | Command | Used by |
+|---|---|---|
+| SMS worker | `cd worker && npm run dev` | `test:os` |
+| Production preview on 4321 | `PUBLIC_OS_API=http://127.0.0.1:8787 npm run build && npm run preview -- --port 4321` | `test:e2e`, `test:offline`, `test:os` |
+| Dev server on 4322 | `npm run dev -- --port 4322` | `test:state` |
+
+Then run:
+
 ```sh
-cargo test --manifest-path engine/Cargo.toml   # 22 Rust unit tests
-npx tsc --noEmit                               # types
-npx astro check                                # Astro + template checks
-npm run build                                  # production build
-BASE=http://localhost:4321 npm run test:e2e    # prod smoke (banners, restart, level input, LCD settings menu, high score, console)
-BASE=http://localhost:4322 npm run test:state  # dev state machine (eat, pause, level-up, touch)
-BASE=http://localhost:8901 npm run test:offline # offline reload + play
-BASE=http://localhost:4321 npm run test:os     # OS menu, apps, live SMS between two phones
+cargo test --manifest-path engine/Cargo.toml
+npx tsc --noEmit
+npx astro check
+BASE=http://localhost:4321 npm run test:e2e
+BASE=http://localhost:4321 npm run test:offline
+BASE=http://localhost:4321 npm run test:os
+BASE=http://localhost:4322 npm run test:state
 ```
 
-`test:os` needs the worker (`cd worker && npm run dev`) and a build with
-`PUBLIC_OS_API` pointing at it.
+`test:state` needs the dev server because it reads the game through `window.__matopeli`, a read-only seam that exists only in dev builds and is compiled out of production.
 
-`test:state` drives the real game in a dev browser through a
-read-only `window.__matopeli` seam that exists only in dev builds —
-it is compiled out of production. It steers toward actual food,
-pauses mid-game, clears a level, and proves score and level survive
-every transition.
+On a machine without Google Chrome, prefix the browser suites with `CI=1` so they use Playwright's own Chromium.
 
-## Regenerate the WASM artifact
+## How it works
+
+```text
+engine/src/lib.rs         Rust game rules
+      │  cargo build --target wasm32-unknown-unknown
+      ▼
+public/engine.wasm        32 KB, no dependencies, committed
+      │  loaded by
+      ▼
+src/scripts/snake.ts      Snake II rendering, input and sound
+src/os/                   the phone OS: shell, apps, SMS client
+src/pages/index.astro     the 3310 face (Astro 6, Tailwind 4)
+      │  HTTPS + WebSocket
+      ▼
+worker/                   Cloudflare Worker: D1 + Durable Object
+```
+
+| Path | Role |
+|---|---|
+| `src/os/os.ts` | Phone shell: boot, idle, menu, status bar, key routing, backlight |
+| `src/os/events.ts` | The only channel between the game and the phone (typed events) |
+| `src/os/apps/` | One file per app; each returns an `OsApp` |
+| `src/os/sms.ts`, `src/os/net.ts` | The Messages app and the SIM and WebSocket client |
+| `src/scripts/snake.ts` | Snake II front end over the engine |
+| `scripts/gen-sw.mjs` | Writes the offline service worker after each build |
+| `worker/src/worker.ts`, `worker/src/presence.ts` | SMS API and live delivery |
+
+The front end talks to the engine through plain integer exports, with no bindings generator and no glue library:
+
+| Export | Returns |
+|---|---|
+| `snake_tick()` | `0` nothing · `1` ate · `2` bonus · `3` died · `4` level up · `5` board cleared |
+| `snake_state()` | `0` ready · `1` running · `2` paused · `3` over · `4` won |
+| `snake_cause()` | `0` none · `1` wall · `2` self |
+
+A phone app is an object with `mount`, `unmount` and `onKey`. Give it `acceptsDigits` returning `true` while it takes typed input; otherwise the shell turns 2, 8 and 5 into up, down and select for it.
+
+## Offline
+
+`npm run build` runs `scripts/gen-sw.mjs`, which writes `dist/sw.js` listing the exact hashed files of that build.
+
+| Request | Strategy |
+|---|---|
+| Page navigation | Network first, cached copy when offline |
+| Hashed assets (JS, CSS, WASM) | Cache first |
+| Anything else | Not cached |
+
+Only successful same-origin responses are stored, and only caches named `matopeli-*` are ever deleted. `test:offline` proves it end to end.
+
+## Change the game engine
 
 ```sh
 cd engine
@@ -154,32 +210,56 @@ cargo build --release --target wasm32-unknown-unknown
 cp target/wasm32-unknown-unknown/release/engine.wasm ../public/engine.wasm
 ```
 
-The release build is byte-deterministic for the pinned toolchain, so
-CI compares the committed `public/engine.wasm` against a fresh build
-and fails on drift. Never edit the binary by hand.
+The release build is byte-identical for the pinned toolchain. CI rebuilds it and fails when the committed `public/engine.wasm` differs. Never edit the binary by hand.
 
-## Offline support
+## Deploy
 
-`npm run build` also runs `scripts/gen-sw.mjs`, which writes
-`dist/sw.js` with the exact hashed assets of that build. The worker
-precaches the page, the bundle, the CSS and the WASM; navigation is
-network-first with a cached fallback, versioned assets are cache-first,
-only successful same-origin responses are stored, and only
-`matopeli-*` caches are ever deleted. Validate with
-`npm run test:offline`, which loads online, waits for precaching,
-cuts the network, reloads, and starts a game.
+| Part | How |
+|---|---|
+| Site | Any static host. `npm run build` writes `dist/`. Set `PUBLIC_OS_API` to the worker's URL at build time, or the phone shows NO SIGNAL. |
+| Worker | From `worker/`: `npx wrangler d1 create matopeli_os`, put the printed `database_id` in `wrangler.toml` (it is `local` today), run `npx wrangler d1 execute matopeli_os --remote --file schema.sql`, then `npx wrangler deploy`. |
+
+## Data and privacy
+
+| Data | Where it lives |
+|---|---|
+| Scores, settings, contacts, reminders, call register | Your browser's `localStorage`; never sent anywhere |
+| Your phone number and its secret token | `localStorage`, and the `sims` table in D1 |
+| Messages | The `messages` table in D1: sender, recipient, body, status and time. Nothing deletes them. |
+
+Numbers are handed out in sequence (`+212612000001`, `+212612000002`, …). They are not real phone numbers and cannot reach a real phone.
 
 ## Limitations
 
-- Full 9-level browser playthroughs are not automated (luck-based);
-  level transitions are covered by engine tests plus a scripted
-  level-1 → level-2 browser run.
-- Back/forward-cache restore recreates a fresh game instead of the
-  exact mid-run state (no use-after-free: the old instance is
-  destroyed on hide).
-- Sounds need a user gesture first (browser policy); vibration is
-  mobile-only and guarded.
+- The live site has no SMS backend deployed, so it shows NO SIGNAL. Messaging works only with a worker you run or deploy.
+- The SIM token travels in the WebSocket URL (`/ws?token=…`), where proxies and logs can record it. Move it into the first WebSocket message before running the worker for real users.
+- The worker answers any origin (`Access-Control-Allow-Origin: *`).
+- CI runs the engine tests, type checks, the build, `test:e2e`, `test:offline` and `test:state`. It does not run `test:os` or the worker smoke test.
+- Full playthroughs of every level are not automated; level changes are covered by engine tests and a scripted level 1 → 2 run.
+- Restoring the page from the back/forward cache starts a fresh game, not the exact mid-run state.
+- Sound starts after your first tap or key press (browser policy). Vibration works only on phones that support it.
+- In a normal browser tab on a phone held sideways, the page scrolls. Installed as an app, it stays in portrait.
+
+## Troubleshooting
+
+**The phone says NO SIGNAL.**
+The site has no worker to reach. Start one (`cd worker && npm run dev`). `npm run dev` connects to it at http://127.0.0.1:8787 on its own. A production build connects only when built with `PUBLIC_OS_API`, for example `PUBLIC_OS_API=http://127.0.0.1:8787 npm run build`; without it the phone stays offline and makes no network requests.
+
+**The worker fails with `no such table: sims`.**
+The local database is empty. From `worker/`, run `npx wrangler d1 execute matopeli_os --local --file schema.sql`.
+
+**A browser test fails with `browserType.launch: Executable doesn't exist`.**
+Playwright's Chromium is missing or older than the installed `playwright` package. Run `npx playwright install chromium`.
+
+**`test:state` fails at once with a `TimeoutError` on `waitForFunction`.**
+It is pointed at a production build or at the wrong port. When 4322 is taken, Astro prints `Port 4322 is in use, trying another one...` and starts on the next free port. Pass that port in `BASE`.
+
+**CI fails on "committed wasm matches engine source".**
+The engine source changed without rebuilding the binary. Follow [Change the game engine](#change-the-game-engine) and commit the new `public/engine.wasm`.
+
+**No sound.**
+Browsers block audio until the first user gesture. Press any key, then check Menu → Settings → Sound.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

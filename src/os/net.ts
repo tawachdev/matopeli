@@ -1,5 +1,7 @@
 const SIM_KEY = 'snake2_sim';
-const API_BASE = (import.meta.env.PUBLIC_OS_API as string | undefined) || 'http://127.0.0.1:8787';
+const LOCAL_WORKER = 'http://127.0.0.1:8787';
+const API_BASE = (import.meta.env.PUBLIC_OS_API as string | undefined) || (import.meta.env.DEV ? LOCAL_WORKER : '');
+const backendConfigured = API_BASE !== '';
 
 export interface Sim {
   number: string;
@@ -84,6 +86,7 @@ class Net {
   }
 
   async register(): Promise<Sim | null> {
+    if (!backendConfigured) return null;
     const existing = this.currentSim();
     const body = existing ? { token: existing.token } : {};
     try {
@@ -105,6 +108,7 @@ class Net {
   }
 
   async send(to: string, kind: string, body: string): Promise<{ id: string; status: string } | { error: string }> {
+    if (!backendConfigured) return { error: 'no_signal' };
     const sim = this.currentSim();
     if (!sim) return { error: 'no_sim' };
     try {
@@ -124,6 +128,7 @@ class Net {
   }
 
   async list(): Promise<{ inbox: SmsMessage[]; outbox: SmsMessage[] } | null> {
+    if (!backendConfigured) return null;
     const sim = this.currentSim();
     if (!sim) return null;
     try {
@@ -145,7 +150,7 @@ class Net {
   }
 
   connect(): void {
-    if (this.socket || !navigator.onLine) return;
+    if (!backendConfigured || this.socket || !navigator.onLine) return;
     void this.ensureSimThenSocket();
   }
 
