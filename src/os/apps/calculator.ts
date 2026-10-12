@@ -1,4 +1,5 @@
-import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import type { OsApp, OsKeyEvent } from '../types';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 type Tok = { t: 'n'; v: number } | { t: 'o'; v: string };
 
@@ -128,7 +129,7 @@ function formatResult(value: number): string {
   return String(rounded);
 }
 
-export function createCalculatorApp(services: OsServices): OsApp {
+export function createCalculatorApp(): OsApp {
   const hashCycle: string[] = ['*', '/', '-', '.'];
   let hashIndex = 0;
   let expression = '';
@@ -158,6 +159,7 @@ export function createCalculatorApp(services: OsServices): OsApp {
 
   return {
     id: 'calculator',
+    acceptsDigits: () => true,
     title: 'Calculator',
     mount(target: HTMLElement): void {
       root = target;
@@ -206,7 +208,7 @@ export function createCalculatorApp(services: OsServices): OsApp {
         runEquals();
         return;
       } else if (event.name === 'back') {
-        window.dispatchEvent(new CustomEvent('os-home'));
+        emitPhoneEvent(PhoneEvent.home);
       } else if (event.name === 'clear') {
         expression = '';
         lastExpression = '';

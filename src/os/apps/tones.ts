@@ -1,5 +1,6 @@
 import type { OsApp, OsKeyEvent } from '../types';
 import { playSequence, currentRingtone } from '../audio';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 const RING_KEY = 'snake2_ring_tone';
 const ALERT_KEY = 'snake2_msg_alert';
@@ -166,7 +167,7 @@ export function createTonesApp(openComposer: () => void): OsApp {
           openComposer();
         }
       } else if (event.name === 'back') {
-        window.dispatchEvent(new CustomEvent('os-home'));
+        emitPhoneEvent(PhoneEvent.home);
       }
       return;
     }

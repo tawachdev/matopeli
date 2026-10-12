@@ -11,6 +11,7 @@ import { createRemindersApp } from './apps/reminders';
 import { createTonesApp } from './apps/tones';
 import { createSmsApp } from './sms';
 import { playTone, currentRingtone, saveRingtone } from './audio';
+import { emitPhoneEvent, onCallRequested, PhoneEvent } from './events';
 
 const services: OsServices = {
   contacts: (): Contact[] => {
@@ -66,7 +67,7 @@ function createSubmenuApp(id: string, title: string, items: { label: string; ope
     const back = document.createElement('button');
     back.className = 'os-back';
     back.textContent = 'Back';
-    back.addEventListener('click', () => window.dispatchEvent(new CustomEvent('os-home')));
+    back.addEventListener('click', () => emitPhoneEvent(PhoneEvent.home));
     soft.appendChild(back);
     root.appendChild(soft);
   };
@@ -90,7 +91,7 @@ function createSubmenuApp(id: string, title: string, items: { label: string; ope
       } else if (event.name === 'select') {
         items[index].open();
       } else if (event.name === 'back') {
-        window.dispatchEvent(new CustomEvent('os-home'));
+        emitPhoneEvent(PhoneEvent.home);
       }
     },
   };
@@ -104,23 +105,18 @@ const gamesMenu = (): OsApp =>
 
 registerApps({
   messages: () => createSmsApp(services),
-  callreg: () => createCallRegisterApp(services),
+  callreg: () => createCallRegisterApp(),
   tones: () => createTonesApp(() => openApp(createComposerApp(services))),
   games: gamesMenu,
-  calculator: () => createCalculatorApp(services),
+  calculator: () => createCalculatorApp(),
   reminders: () =>
     createSubmenuApp('reminders', 'Reminders', [
-      { label: 'Reminders', open: () => openApp(createRemindersApp(services)) },
+      { label: 'Reminders', open: () => openApp(createRemindersApp()) },
       { label: 'Clock alarm', open: () => openApp(createClockApp(services)) },
     ]),
   contacts: () => createContactsApp(services),
 });
 
-window.addEventListener('os-call', (e) => {
-  const detail = (e as CustomEvent<{ name: string; number: string }>).detail;
-  if (detail && typeof detail.number === 'string') {
-    openApp(createCallScreenApp(detail.number, typeof detail.name === 'string' ? detail.name : ''));
-  }
-});
+onCallRequested((contact) => openApp(createCallScreenApp(contact.number, contact.name)));
 
 initOs();

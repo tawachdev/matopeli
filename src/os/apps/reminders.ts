@@ -1,4 +1,5 @@
-import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import type { OsApp, OsKeyEvent } from '../types';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 interface Reminder {
   text: string;
@@ -45,7 +46,7 @@ function sortedReminders(): Reminder[] {
 
 type View = 'list' | 'form' | 'confirm';
 
-export function createRemindersApp(services: OsServices): OsApp {
+export function createRemindersApp(): OsApp {
   let root: HTMLElement | null = null;
   let view: View = 'list';
   let cursor = 0;
@@ -188,6 +189,7 @@ export function createRemindersApp(services: OsServices): OsApp {
 
   return {
     id: 'reminders',
+    acceptsDigits: () => view === 'form',
     title: 'Reminders',
     mount(target: HTMLElement): void {
       root = target;
@@ -205,7 +207,7 @@ export function createRemindersApp(services: OsServices): OsApp {
     onKey(event: OsKeyEvent): void {
       if (view === 'list') {
         if (event.name === 'back') {
-          window.dispatchEvent(new CustomEvent('os-home'));
+          emitPhoneEvent(PhoneEvent.home);
         } else if (event.name === 'up' || event.name === 'down') {
           if (list.length === 0) return;
           cursor =

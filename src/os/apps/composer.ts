@@ -1,4 +1,5 @@
 import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 type Note = { kind: 'note'; letter: number; shift: number };
 type Rest = { kind: 'rest' };
@@ -99,6 +100,7 @@ export function createComposerApp(services: OsServices): OsApp {
 
   return {
     id: 'composer',
+    acceptsDigits: () => true,
     title: 'Composer',
     mount(target: HTMLElement): void {
       root = target;
@@ -166,7 +168,7 @@ export function createComposerApp(services: OsServices): OsApp {
         play();
       } else if (event.name === 'back') {
         if (tokens.length === 0) {
-          window.dispatchEvent(new CustomEvent('os-home'));
+          emitPhoneEvent(PhoneEvent.home);
           return;
         }
         const index = effectiveIndex();

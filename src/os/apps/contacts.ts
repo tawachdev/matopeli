@@ -1,4 +1,5 @@
 import type { Contact, OsApp, OsKeyEvent, OsServices } from '../types';
+import { emitPhoneEvent, PhoneEvent, requestCall } from '../events';
 
 type View = 'list' | 'detail' | 'form' | 'confirm';
 
@@ -193,6 +194,7 @@ export function createContactsApp(services: OsServices): OsApp {
 
   return {
     id: 'contacts',
+    acceptsDigits: () => view === 'form',
     title: 'Contacts',
     mount(target: HTMLElement): void {
       root = target;
@@ -212,7 +214,7 @@ export function createContactsApp(services: OsServices): OsApp {
     onKey(event: OsKeyEvent): void {
       if (view === 'list') {
         if (event.name === 'back') {
-          window.dispatchEvent(new CustomEvent('os-home'));
+          emitPhoneEvent(PhoneEvent.home);
         } else if (event.name === 'up' || event.name === 'down') {
           if (list.length === 0) return;
           cursor =
@@ -230,7 +232,7 @@ export function createContactsApp(services: OsServices): OsApp {
           renderList();
         } else if (event.name === 'select' && list[cursor] !== undefined) {
           const chosen = list[cursor];
-          window.dispatchEvent(new CustomEvent('os-call', { detail: { name: chosen.name, number: chosen.number } }));
+          requestCall(chosen);
         } else if (event.name === 'clear') {
           renderConfirm();
         }

@@ -7,3 +7,4 @@ engine/out/
 .DS_Store
 .vercel
 .wrangler/
+.impeccable/

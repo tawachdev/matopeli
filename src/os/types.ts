@@ -18,6 +18,7 @@ export interface OsKeyEvent {
 export interface OsApp {
   id: string;
   title: string;
+  acceptsDigits?: () => boolean;
   mount(root: HTMLElement): void;
   unmount(): void;
   onKey(event: OsKeyEvent): void;

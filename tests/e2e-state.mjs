@@ -32,7 +32,7 @@ const api = (expr) => page.evaluate(`window.__matopeli.${expr}`);
 const hidden = () => page.$eval('#banner', (el) => el.classList.contains('hidden'));
 check('start screen shows', (await api('banner()')) === 'Snake II');
 
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(300);
 check('start enters level 1 running', (await api('state()')) === 1 && (await api('level()')) === 1);
 check('audio unlocks to running after gesture', (await api('audio()')) === 'running');
@@ -162,9 +162,9 @@ await page.waitForTimeout(600);
 check('keyboard plus keypad queue without conflict', (await api('state()')) === 1);
 
 await ensureRunning();
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(100);
-check('start button pauses mid-game, no duplicate start', (await api('state()')) === 2);
+check('Navi pauses mid-game, no duplicate start', (await api('state()')) === 2);
 const pausedScore = await api('score()');
 await page.waitForTimeout(300);
 check('button pause keeps score', (await api('score()')) === pausedScore);

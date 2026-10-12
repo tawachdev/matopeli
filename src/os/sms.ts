@@ -1,6 +1,7 @@
 import type { OsApp, OsKeyEvent, OsServices } from './types';
 import { net, type SmsMessage } from './net';
 import { incomingAlert, playSequence } from './audio';
+import { emitPhoneEvent, PhoneEvent } from './events';
 
 type SmsView = 'menu' | 'list' | 'sent' | 'thread' | 'compose';
 
@@ -251,7 +252,7 @@ export function createSmsApp(services: OsServices): OsApp {
           void reload();
         }
       } else if (event.name === 'back') {
-        window.dispatchEvent(new CustomEvent('os-home'));
+        emitPhoneEvent(PhoneEvent.home);
       }
       return;
     }
@@ -359,6 +360,7 @@ export function createSmsApp(services: OsServices): OsApp {
 
   return {
     id: 'messages',
+    acceptsDigits: () => view === 'compose' || view === 'thread',
     title: 'Messages',
     mount(node: HTMLElement): void {
       root = node;

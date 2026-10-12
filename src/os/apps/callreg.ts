@@ -1,5 +1,6 @@
-import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import type { OsApp, OsKeyEvent } from '../types';
 import { playTone } from '../audio';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 type CallType = 'dialled' | 'received' | 'missed';
 
@@ -59,7 +60,7 @@ const MENU: { label: string; type: CallType | null }[] = [
   { label: 'Erase all', type: null },
 ];
 
-export function createCallRegisterApp(services: OsServices): OsApp {
+export function createCallRegisterApp(): OsApp {
   let root: HTMLElement | null = null;
   let view: RegView = 'menu';
   let cursor = 0;
@@ -168,7 +169,7 @@ export function createCallRegisterApp(services: OsServices): OsApp {
     onKey(event: OsKeyEvent): void {
       if (view === 'menu') {
         if (event.name === 'back') {
-          window.dispatchEvent(new CustomEvent('os-home'));
+          emitPhoneEvent(PhoneEvent.home);
         } else if (event.name === 'up' || event.name === 'down') {
           cursor =
             event.name === 'up'
@@ -233,7 +234,7 @@ export function createCallScreenApp(number: string, name: string): OsApp {
     ended = true;
     stopTimer();
     appendCall({ type: 'dialled', name, number, at: Date.now() });
-    window.dispatchEvent(new CustomEvent('os-home'));
+    emitPhoneEvent(PhoneEvent.home);
   }
 
   return {

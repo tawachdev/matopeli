@@ -30,7 +30,7 @@ await page.waitForTimeout(800);
 check('start banner visible', await page.$eval('#banner', (el) => el.classList.contains('hidden') === false));
 check('9 level buttons', (await page.$$('#levels button')).length === 9);
 
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(200);
 check('start hides banner', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
 check('fresh game starts level 1', (await page.textContent('#level')) === 'Level 1');
@@ -50,7 +50,7 @@ await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await enterGame(page);
 await page.waitForTimeout(500);
 await page.click('#levels button:nth-child(6)');
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForFunction(
   () => document.getElementById('bannerTitle').textContent === 'Game over',
   { timeout: 30000 }
@@ -66,7 +66,7 @@ await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await enterGame(page);
 await page.waitForTimeout(500);
 await page.click('#levels button:last-child');
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(300);
 check('picker starts level 9', (await page.textContent('#level')) === 'Level 9');
 
@@ -74,14 +74,17 @@ await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await enterGame(page);
 await page.waitForTimeout(500);
 await page.fill('#levelInput', '20');
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(300);
 check('typed level input starts level 20', (await page.textContent('#level')) === 'Level 20');
 
 await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await enterGame(page);
 await page.waitForTimeout(500);
-await page.click('#btnSettings');
+await page.keyboard.press('#');
+await page.waitForTimeout(150);
+for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+await page.keyboard.press('Enter');
 await page.waitForTimeout(200);
 check('settings menu opens', await page.$eval('#settings', (el) => !el.classList.contains('hidden')));
 check('lcd title bar shows Settings', (await page.textContent('#menuTitle')) === 'Settings');

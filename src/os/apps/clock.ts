@@ -1,4 +1,5 @@
 import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 const STORAGE_KEY = 'snake2_alarm';
 
@@ -170,6 +171,7 @@ export function createClockApp(services: OsServices): OsApp {
 
   return {
     id: 'clock',
+    acceptsDigits: () => true,
     title: 'Clock',
     mount(target: HTMLElement): void {
       root = target;
@@ -213,7 +215,7 @@ export function createClockApp(services: OsServices): OsApp {
         return;
       }
       if (event.name === 'back') {
-        window.dispatchEvent(new CustomEvent('os-home'));
+        emitPhoneEvent(PhoneEvent.home);
       } else if (event.name === 'up' || event.name === 'down') {
         cursor =
           event.name === 'up' ? Math.max(0, cursor - 1) : Math.min(1, cursor + 1);

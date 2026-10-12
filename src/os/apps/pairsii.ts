@@ -1,4 +1,5 @@
 import type { OsApp, OsKeyEvent, OsServices } from '../types';
+import { emitPhoneEvent, PhoneEvent } from '../events';
 
 const SYMBOLS = ['#', '*', '+', '=', 'o', 'x', '>', '~'];
 const GRID = 4;
@@ -182,7 +183,7 @@ export function createPairsApp(services: OsServices): OsApp {
       else if (event.name === 'select' || (event.name === 'digit' && event.digit === 5)) {
         flip(cursor);
       } else if (event.name === 'back') {
-        if (!locked) window.dispatchEvent(new CustomEvent('os-home'));
+        if (!locked) emitPhoneEvent(PhoneEvent.home);
       } else if (event.name === 'clear') {
         newGame();
       }

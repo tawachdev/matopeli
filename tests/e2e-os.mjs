@@ -38,18 +38,45 @@ check('hash hides OS to game banner', await pageA.$eval('#banner', (el) => !el.c
 
 await press(pageA, '#');
 const menuText = await osText(pageA);
-check('main menu shows classic Nokia entries', ['Messages', 'Call register', 'Tones', 'Settings', 'Games', 'Calculator', 'Reminders', 'Names'].every((label) => menuText.includes(label)));
+check('main menu shows classic Nokia entries', ['Messages', 'Call register', 'Tones', 'Settings', 'Games', 'Calculator'].every((label) => menuText.includes(label)));
+for (let i = 0; i < 7; i++) await press(pageA, 'ArrowDown');
+check('menu scrolls to show last entry (Names)', (await osText(pageA)).includes('Names'));
+for (let i = 0; i < 7; i++) await press(pageA, 'ArrowUp');
 
 for (let i = 0; i < 4; i++) await press(pageA, 'ArrowDown');
 await press(pageA, 'Enter');
 const gamesText = await osText(pageA);
 check('Games submenu lists Snake II and Pairs II', gamesText.includes('Snake II') && gamesText.includes('Pairs II'));
+await pageA.click('#keyC');
+await pageA.waitForTimeout(200);
+check('on-screen C goes back from Games to the main menu', (await osText(pageA)).includes('Messages')
+  && (await pageA.$eval('#banner', (el) => el.querySelector('#bannerTitle').textContent)) === 'Snake II');
+for (let i = 0; i < 4; i++) await press(pageA, 'ArrowDown');
+await pageA.click('#navi');
+await pageA.waitForTimeout(200);
+check('Navi key acts as SELECT on phone screens', (await osText(pageA)).includes('Pairs II'));
 await press(pageA, 'Enter');
 await pageA.waitForTimeout(250);
 check('Snake II launches and hides OS', await pageA.$eval('#banner', (el) => el.classList.contains('hidden'))
   && (await pageA.$eval('#osRoot', (el) => el.classList.contains('hidden'))));
 
-await press(pageA, '#');
+const osShown = () => pageA.$eval('#osRoot', (el) => !el.classList.contains('hidden'));
+await pageA.click('#keyC');
+await pageA.waitForTimeout(200);
+check('C pauses Snake', (await pageA.textContent('#bannerTitle')) === 'Paused' && !(await osShown()));
+await pageA.click('#keyC');
+await pageA.waitForTimeout(200);
+check('C again exits Snake to the phone Games menu', (await osShown()) && (await osText(pageA)).includes('Snake II'));
+await press(pageA, 'Enter');
+await pageA.waitForTimeout(250);
+check('re-entering Snake II resumes the game', !(await osShown())
+  && (await pageA.$eval('#banner', (el) => el.classList.contains('hidden'))));
+
+await pageA.click('[data-k="#"]');
+await pageA.waitForTimeout(200);
+check('on-screen # opens the phone menu and pauses the game', (await osShown())
+  && (await osText(pageA)).includes('Messages')
+  && (await pageA.textContent('#bannerTitle')) === 'Paused');
 for (let i = 0; i < 4; i++) await press(pageA, 'ArrowDown');
 await press(pageA, 'Enter');
 await press(pageA, 'ArrowDown');
@@ -144,6 +171,27 @@ await press(pageB, 'ArrowDown');
 await press(pageB, 'Enter');
 await pageB.waitForFunction(() => (document.getElementById('osScreen')?.textContent || '').includes('98'), null, { timeout: 8000 });
 check('B receives message in real time', true);
+const ctxC = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const pageC = await ctxC.newPage();
+const tap = async (selector) => {
+  await pageC.click(selector);
+  await pageC.waitForTimeout(120);
+};
+const cursorC = () => pageC.$eval('#osScreen .os-cur', (el) => el.textContent || '');
+await pageC.goto(BASE + '/', { waitUntil: 'networkidle' });
+await tap('[data-k="5"]');
+check('first key press only wakes the phone to idle', /\d{2}:\d{2}/.test(await osText(pageC)) && !(await osText(pageC)).includes('Messages'));
+check('key press lights the backlight', await pageC.$eval('.lens', (el) => el.classList.contains('lit')));
+await tap('#navi');
+await tap('#keyDown');
+await tap('#keyDown');
+check('scroll keys move the menu cursor', (await cursorC()).includes('Tones'));
+await tap('[data-k="5"]');
+await tap('[data-k="8"]');
+check('keypad 8 moves down inside a list app', (await cursorC()).includes('Message alert tone'));
+await tap('[data-k="2"]');
+check('keypad 2 moves up inside a list app', (await cursorC()).includes('Ringing tone'));
+
 check('console clean', problems.length === 0);
 for (const p of problems) console.log('  ! ' + p);
 

@@ -42,7 +42,7 @@ await page.reload({ waitUntil: 'domcontentloaded' });
 await enterGame(page);
 await page.waitForTimeout(1500);
 check('page renders offline', await page.$eval('#banner', (el) => el.classList.contains('hidden') === false));
-await page.click('#softL');
+await page.click('#navi');
 await page.waitForTimeout(500);
 check('game starts offline', await page.$eval('#banner', (el) => el.classList.contains('hidden')));
 check('level line reads offline', (await page.textContent('#level')) === 'Level 1');
