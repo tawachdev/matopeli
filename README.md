@@ -85,15 +85,22 @@ The phone is a full device, not just the game. Boot shows the Nokia splash,
 then the idle screen (live clock, signal status). `#` toggles the OS menu
 from anywhere; inside it 2/8 move, 5/navi selects, C goes back.
 
-- **Messages** — real SMS between phones: each browser registers a SIM
-  (number + secret in localStorage), messages go through the Cloudflare
-  Worker backend in `worker/` and arrive live over WebSocket (or queued
-  and delivered on next connect, with delivery status). A composed
-  ringtone can be attached and plays on the receiver.
-- **Games** — Snake II (this repo's engine).
-- **Contacts** — local address book.
-- **Extras** — Calculator, ringtone Composer, Clock/Alarm.
+The menu is the classic Nokia 3310 layout:
+
+- **Messages** — Write message / Inbox / Sent items. Real SMS between
+  phones: each browser registers a SIM (number + secret in
+  localStorage), messages go through the Cloudflare Worker backend in
+  `worker/` and arrive live over WebSocket (or queued and delivered on
+  next connect, with delivery status). A composed ringtone can be
+  attached and plays on the receiver.
+- **Call register** — Dialled / Received / Missed lists; selecting a
+  contact in Names starts a simulated call (timer) logged as dialled.
+- **Tones** — ringing tone picker (incl. the composed tone), message
+  alert tone, keypad tones, vibrating alert, and the ringtone Composer.
 - **Settings** — the LCD settings menu (sound styles, theme, effects).
+- **Games** — Snake II (the Rust engine) and Pairs II (memory game).
+- **Calculator**, **Reminders** (+ clock alarm), **Names** (contacts,
+  dial to call).
 
 ### Backend (local)
 

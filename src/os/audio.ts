@@ -71,9 +71,34 @@ export function saveRingtone(notes: string): void {
 }
 
 export function incomingAlert(kind: string): void {
+  if (vibrateWanted() && navigator.vibrate) {
+    try {
+      navigator.vibrate(90);
+    } catch {}
+  }
   if (kind === 'ringtone') {
     playSequence(currentRingtone());
-  } else {
-    playSequence('a5 c6 a5 c6 a5 c6', 140);
+    return;
+  }
+  const alert = messageAlertSetting();
+  if (alert === 'Silent') return;
+  if (alert === 'Beep once') playSequence('a5');
+  else if (alert === 'Beep twice') playSequence('a5 - a5');
+  else playSequence('a5 c6 a5 c6 a5 c6', 140);
+}
+
+function messageAlertSetting(): string {
+  try {
+    return localStorage.getItem('snake2_msg_alert') || 'Fancy';
+  } catch {
+    return 'Fancy';
+  }
+}
+
+function vibrateWanted(): boolean {
+  try {
+    return localStorage.getItem('snake2_vibrate_alert') !== '0';
+  } catch {
+    return true;
   }
 }

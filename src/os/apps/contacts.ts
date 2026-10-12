@@ -96,7 +96,7 @@ export function createContactsApp(services: OsServices): OsApp {
     container.append(nameRow, numRow);
     hintText = document.createElement('div');
     hintText.className = 'os-hint';
-    hintText.textContent = 'call not supported';
+    hintText.textContent = 'select = call';
     root?.append(container, hintText, makeSoft());
   }
 
@@ -228,6 +228,9 @@ export function createContactsApp(services: OsServices): OsApp {
       } else if (view === 'detail') {
         if (event.name === 'back') {
           renderList();
+        } else if (event.name === 'select' && list[cursor] !== undefined) {
+          const chosen = list[cursor];
+          window.dispatchEvent(new CustomEvent('os-call', { detail: { name: chosen.name, number: chosen.number } }));
         } else if (event.name === 'clear') {
           renderConfirm();
         }

@@ -2,7 +2,7 @@ import type { OsApp, OsKeyEvent, OsServices } from './types';
 import { net, type SmsMessage } from './net';
 import { incomingAlert, playSequence } from './audio';
 
-type SmsView = 'list' | 'thread' | 'compose';
+type SmsView = 'menu' | 'list' | 'sent' | 'thread' | 'compose';
 
 interface Thread {
   peer: string;
@@ -11,9 +11,11 @@ interface Thread {
 
 export function createSmsApp(services: OsServices): OsApp {
   let root: HTMLElement | null = null;
-  let view: SmsView = 'list';
+  let view: SmsView = 'menu';
   let threads: Thread[] = [];
   let threadIndex = 0;
+  let menuIndex = 0;
+  let sentIndex = 0;
   let activePeer = '';
   let composeTo = '';
   let composeBody = '';
@@ -35,7 +37,9 @@ export function createSmsApp(services: OsServices): OsApp {
 
   const hint = (): string => {
     if (!net.online) return 'No signal';
+    if (view === 'menu') return '5 open';
     if (view === 'list') return '5 open  C back';
+    if (view === 'sent') return '5 open  C back';
     if (view === 'thread') return '5 reply  C back';
     return 'to/body: 4-6   5 send';
   };
@@ -43,7 +47,7 @@ export function createSmsApp(services: OsServices): OsApp {
   const renderShell = (): void => {
     if (!root) return;
     root.innerHTML = '';
-    root.appendChild(el('div', 'os-title', view === 'compose' ? 'Write message' : 'Messages'));
+    root.appendChild(el('div', 'os-title', view === 'compose' ? 'Write message' : view === 'sent' ? 'Sent items' : 'Messages'));
     const body = el('div', 'os-body');
     root.appendChild(body);
     const soft = el('div', 'os-soft');
@@ -122,9 +126,49 @@ export function createSmsApp(services: OsServices): OsApp {
     body.appendChild(action);
   };
 
+  const menuItems = (): string[] => ['Write message', 'Inbox', 'Sent items'];
+
+  const renderMenu = (): void => {
+    const body = root?.querySelector('.os-body');
+    if (!body) return;
+    body.innerHTML = '';
+    const list = el('div', 'os-list');
+    menuItems().forEach((label, i) => {
+      const row = el('div', 'os-row', label);
+      if (i === menuIndex) row.classList.add('os-cur');
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  };
+
+  const renderSent = (): void => {
+    const body = root?.querySelector('.os-body');
+    if (!body) return;
+    body.innerHTML = '';
+    const list = el('div', 'os-list');
+    const myNumber = net.currentSim()?.number;
+    if (myNumber) list.appendChild(el('div', 'os-row os-my', `My ${myNumber}`));
+    const outbox = threads
+      .flatMap((thread) => thread.messages)
+      .filter((message) => message.from === net.currentSim()?.number)
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 12);
+    if (outbox.length === 0) list.appendChild(el('div', 'os-row', 'No sent messages'));
+    outbox.forEach((message, i) => {
+      const row = el('div', 'os-row');
+      row.appendChild(el('span', '', message.to));
+      row.appendChild(el('span', 'os-val', message.status === 'delivered' ? 'SENT' : 'QUEUED'));
+      if (i === sentIndex) row.classList.add('os-cur');
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  };
+
   const render = (): void => {
     renderShell();
-    if (view === 'list') renderList();
+    if (view === 'menu') renderMenu();
+    else if (view === 'list') renderList();
+    else if (view === 'sent') renderSent();
     else if (view === 'thread') renderThread();
     else renderCompose();
   };
@@ -150,6 +194,7 @@ export function createSmsApp(services: OsServices): OsApp {
     });
     if (view === 'list') renderList();
     if (view === 'thread') renderThread();
+    if (view === 'sent') renderSent();
   };
 
   const sendCurrent = async (): Promise<void> => {
@@ -180,6 +225,57 @@ export function createSmsApp(services: OsServices): OsApp {
   };
 
   const onKey = (event: OsKeyEvent): void => {
+    if (view === 'menu') {
+      const count = menuItems().length;
+      if (event.name === 'up') {
+        menuIndex = (menuIndex + count - 1) % count;
+        renderMenu();
+      } else if (event.name === 'down') {
+        menuIndex = (menuIndex + 1) % count;
+        renderMenu();
+      } else if (event.name === 'select') {
+        if (menuIndex === 0) {
+          composeTo = '';
+          composeBody = '';
+          composeFocus = 'to';
+          view = 'compose';
+          render();
+        } else if (menuIndex === 1) {
+          view = 'list';
+          render();
+          void reload();
+        } else {
+          view = 'sent';
+          sentIndex = 0;
+          render();
+          void reload();
+        }
+      } else if (event.name === 'back') {
+        window.dispatchEvent(new CustomEvent('os-home'));
+      }
+      return;
+    }
+    if (view === 'sent') {
+      const myMessages = threads
+        .flatMap((thread) => thread.messages)
+        .filter((message) => message.from === net.currentSim()?.number)
+        .sort((a, b) => b.created_at - a.created_at);
+      if (event.name === 'up' && myMessages.length > 0) {
+        sentIndex = (sentIndex + myMessages.length - 1) % myMessages.length;
+        renderSent();
+      } else if (event.name === 'down' && myMessages.length > 0) {
+        sentIndex = (sentIndex + 1) % myMessages.length;
+        renderSent();
+      } else if (event.name === 'select' && myMessages[sentIndex]) {
+        activePeer = myMessages[sentIndex].to;
+        view = 'thread';
+        render();
+      } else if (event.name === 'back') {
+        view = 'menu';
+        renderMenu();
+      }
+      return;
+    }
     if (view === 'list') {
       if (event.name === 'up' && threads.length > 0) {
         threadIndex = (threadIndex + threads.length - 1) % threads.length;
@@ -198,8 +294,8 @@ export function createSmsApp(services: OsServices): OsApp {
         view = 'compose';
         render();
       } else if (event.name === 'back') {
-        view = 'list';
-        window.dispatchEvent(new CustomEvent('os-home'));
+        view = 'menu';
+        renderMenu();
       }
       return;
     }
@@ -212,7 +308,8 @@ export function createSmsApp(services: OsServices): OsApp {
         render();
       } else if (event.name === 'back') {
         view = 'list';
-        render();
+        renderList();
+        void reload();
       }
       return;
     }
@@ -253,9 +350,8 @@ export function createSmsApp(services: OsServices): OsApp {
         void sendCurrent();
       }
     } else if (event.name === 'back') {
-      view = 'list';
-      render();
-      void reload();
+      view = 'menu';
+      renderMenu();
     }
   };
 

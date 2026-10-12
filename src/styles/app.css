@@ -303,3 +303,16 @@ button:focus-visible { outline: 3px solid #febb02; outline-offset: 2px; }
 @keyframes bootPulse { 50% { opacity: 0.4; } }
 #bootScreen.hidden { display: none; }
 #osRoot.hidden { display: none; }
+.os-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding-top: 6px; }
+.os-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 2px solid var(--color-lcd-ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+.os-cell.flip { background: var(--color-lcd-ink); color: var(--color-lcd-bg); }
+.os-cell.done { border-color: var(--color-lcd-dim); opacity: 0.45; }
+.os-cell.cur { outline: 2px dashed var(--color-lcd-ink); outline-offset: 1px; }

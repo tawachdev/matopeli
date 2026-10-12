@@ -1,6 +1,5 @@
 import type { OsApp, OsKeyEvent, OsKeyName, OsServices, Contact } from './types';
 import { net } from './net';
-import { createSmsApp } from './sms';
 import { playTone, currentRingtone, saveRingtone } from './audio';
 
 const OS_STORAGE_KEY = 'snake2_os_seen';
@@ -47,14 +46,25 @@ interface MenuEntry {
 }
 
 const menuEntries = (): MenuEntry[] => [
-  { label: 'Messages', action: () => openApp(createSmsApp(services)) },
-  { label: 'Games', action: () => launchSnake() },
-  { label: 'Contacts', action: () => openAppById('contacts') },
-  { label: 'Extras', action: () => openAppById('extras') },
+  { label: 'Messages', action: () => openAppById('messages') },
+  { label: 'Call register', action: () => openAppById('callreg') },
+  { label: 'Tones', action: () => openAppById('tones') },
   { label: 'Settings', action: () => openSettings() },
+  { label: 'Games', action: () => openAppById('games') },
+  { label: 'Calculator', action: () => openAppById('calculator') },
+  { label: 'Reminders', action: () => openAppById('reminders') },
+  { label: 'Names', action: () => openAppById('contacts') },
 ];
 
 let appsById: Record<string, () => OsApp> = {};
+
+function keypadTonesOn(): boolean {
+  try {
+    return localStorage.getItem('snake2_keypad_tones') !== '0';
+  } catch {
+    return true;
+  }
+}
 
 function el(tag: string, cls: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -179,6 +189,8 @@ function launchSnake(): void {
   }
 }
 
+export { launchSnake };
+
 function openSettings(): void {
   hide();
   const gear = document.getElementById('btnSettings');
@@ -227,6 +239,9 @@ function keyEvent(e: KeyboardEvent | { key: string }): OsKeyEvent | null {
 }
 
 function handleOsKey(event: OsKeyEvent): void {
+  if (keypadTonesOn() && (event.name === 'up' || event.name === 'down' || event.name === 'select' || event.name === 'back')) {
+    playTone(1300, 14);
+  }
   if (screen === 'app' && activeApp) {
     activeApp.onKey(event);
     return;

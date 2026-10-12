@@ -1,11 +1,16 @@
-import { initOs, registerApps, openApp } from './os';
-import type { OsApp, OsServices } from './types';
+import { initOs, registerApps, openApp, launchSnake } from './os';
+import type { OsApp, OsServices, OsKeyEvent } from './types';
+import type { Contact } from './types';
 import { createCalculatorApp } from './apps/calculator';
 import { createClockApp } from './apps/clock';
 import { createContactsApp } from './apps/contacts';
 import { createComposerApp } from './apps/composer';
+import { createPairsApp } from './apps/pairsii';
+import { createCallRegisterApp, createCallScreenApp } from './apps/callreg';
+import { createRemindersApp } from './apps/reminders';
+import { createTonesApp } from './apps/tones';
+import { createSmsApp } from './sms';
 import { playTone, currentRingtone, saveRingtone } from './audio';
-import type { Contact } from './types';
 
 const services: OsServices = {
   contacts: (): Contact[] => {
@@ -32,21 +37,17 @@ const services: OsServices = {
   saveRingtone,
 };
 
-function createExtrasApp(): OsApp {
-  const items = [
-    { label: 'Calculator', open: () => openApp(createCalculatorApp(services)) },
-    { label: 'Composer', open: () => openApp(createComposerApp(services)) },
-    { label: 'Clock', open: () => openApp(createClockApp(services)) },
-  ];
+function createSubmenuApp(id: string, title: string, items: { label: string; open: () => void }[]): OsApp {
   let root: HTMLElement | null = null;
   let index = 0;
   const render = (): void => {
     if (!root) return;
     root.innerHTML = '';
-    const title = document.createElement('div');
-    title.className = 'os-title';
-    title.textContent = 'Extras';
-    root.appendChild(title);
+    root.className = 'os-screen';
+    const heading = document.createElement('div');
+    heading.className = 'os-title';
+    heading.textContent = title;
+    root.appendChild(heading);
     const list = document.createElement('div');
     list.className = 'os-list';
     items.forEach((item, i) => {
@@ -70,8 +71,8 @@ function createExtrasApp(): OsApp {
     root.appendChild(soft);
   };
   return {
-    id: 'extras',
-    title: 'Extras',
+    id,
+    title,
     mount(node: HTMLElement): void {
       root = node;
       render();
@@ -79,7 +80,7 @@ function createExtrasApp(): OsApp {
     unmount(): void {
       root = null;
     },
-    onKey(event): void {
+    onKey(event: OsKeyEvent): void {
       if (event.name === 'up') {
         index = (index + items.length - 1) % items.length;
         render();
@@ -95,9 +96,31 @@ function createExtrasApp(): OsApp {
   };
 }
 
+const gamesMenu = (): OsApp =>
+  createSubmenuApp('games', 'Games', [
+    { label: 'Snake II', open: () => launchSnake() },
+    { label: 'Pairs II', open: () => openApp(createPairsApp(services)) },
+  ]);
+
 registerApps({
+  messages: () => createSmsApp(services),
+  callreg: () => createCallRegisterApp(services),
+  tones: () => createTonesApp(() => openApp(createComposerApp(services))),
+  games: gamesMenu,
+  calculator: () => createCalculatorApp(services),
+  reminders: () =>
+    createSubmenuApp('reminders', 'Reminders', [
+      { label: 'Reminders', open: () => openApp(createRemindersApp(services)) },
+      { label: 'Clock alarm', open: () => openApp(createClockApp(services)) },
+    ]),
   contacts: () => createContactsApp(services),
-  extras: () => createExtrasApp(),
+});
+
+window.addEventListener('os-call', (e) => {
+  const detail = (e as CustomEvent<{ name: string; number: string }>).detail;
+  if (detail && typeof detail.number === 'string') {
+    openApp(createCallScreenApp(detail.number, typeof detail.name === 'string' ? detail.name : ''));
+  }
 });
 
 initOs();
