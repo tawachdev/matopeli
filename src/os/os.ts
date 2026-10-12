@@ -379,6 +379,10 @@ net.onMessage((): void => {
 
 window.addEventListener('os-home', () => openMenu());
 
+net.onStatus(() => {
+  if (screen === 'idle') renderIdle();
+});
+
 export function initOs(): void {
   root = document.getElementById('osRoot');
   screenEl = document.getElementById('osScreen');
